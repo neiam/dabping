@@ -1,0 +1,27 @@
+[Unit]
+Description=dabping latency monitor
+Documentation=https://github.com/gmorell/dabping
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/dabping -c /etc/dabping/dabping.toml run
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+User=dabping
+Group=dabping
+WorkingDirectory=/var/lib/dabping
+ReadWritePaths=/var/lib/dabping
+
+# unprivileged ICMP without setcap on the binary
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

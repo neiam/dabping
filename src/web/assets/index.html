@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <link rel="icon" href="data:,"/>
+    <link rel="stylesheet" href="/app.css"/>
+    <script defer type="text/javascript" src="/app.js"></script>
+    <title>DABPING :: latency</title>
+    <script>
+      // theme bootstrap (same scheme as DMS): set before first paint
+      (() => {
+        const SYSTEM_DARK = "afterdark";
+        const SYSTEM_LIGHT = "her";
+        const mq = window.matchMedia("(prefers-color-scheme: dark)");
+        const systemTheme = () => mq.matches ? SYSTEM_DARK : SYSTEM_LIGHT;
+        window.dabpingSetTheme = (theme) => {
+          if (theme === "system") {
+            localStorage.removeItem("dabping:theme");
+            document.documentElement.setAttribute("data-theme", systemTheme());
+          } else {
+            localStorage.setItem("dabping:theme", theme);
+            document.documentElement.setAttribute("data-theme", theme);
+          }
+        };
+        if (!document.documentElement.hasAttribute("data-theme")) {
+          window.dabpingSetTheme(localStorage.getItem("dabping:theme") || "system");
+        }
+        mq.addEventListener("change", () => {
+          if (!localStorage.getItem("dabping:theme")) window.dabpingSetTheme("system");
+        });
+      })();
+      // surface uncaught errors on the page itself (headless debugging aid)
+      const showErr = (msg) => {
+        const d = document.createElement("div");
+        d.style.cssText = "position:fixed;bottom:8px;left:8px;max-width:90vw;background:#7f1d1d;color:#fff;padding:6px 10px;font:11px monospace;z-index:99;border-radius:6px";
+        d.textContent = "js error: " + msg;
+        document.body.appendChild(d);
+      };
+      window.addEventListener("error", (e) =>
+        showErr(`${e.message} @ ${(e.filename || "").split("/").pop()}:${e.lineno}`));
+      window.addEventListener("unhandledrejection", (e) => showErr(String(e.reason)));
+      // ?snap: hold the load event open so headless screenshots catch the
+      // graphs fully drawn (see /api/holdload)
+      if (location.search.includes("snap")) {
+        document.addEventListener("DOMContentLoaded", () => {
+          const img = document.createElement("img");
+          img.src = "/api/holdload?ms=5000";
+          img.style.display = "none";
+          document.body.appendChild(img);
+        });
+      }
+    </script>
+</head>
+<body>
+<header class="navbar">
+    <a href="#" class="brand">DABPING</a>
+    <div class="nav-right">
+        <span class="live-status"><span class="live-dot" id="live-dot"></span><span id="live-text">connecting…</span></span>
+        <details class="dropdown" id="theme-dd">
+            <summary>theme</summary>
+            <ul id="theme-list"></ul>
+        </details>
+    </div>
+</header>
+<div class="layout">
+    <aside><nav class="tree" id="tree"></nav></aside>
+    <main id="view"></main>
+</div>
+<div id="tooltip"></div>
+</body>
+</html>

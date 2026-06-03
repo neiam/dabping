@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta http-equiv="refresh" content="60"/>
+    <link rel="icon" href="data:,"/>
+    <link rel="stylesheet" href="/app.css"/>
+    <title>{{ title }}</title>
+    <script>
+      // theme: follow the system, same palette as the operator UI
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const apply = () => document.documentElement.setAttribute("data-theme", mq.matches ? "afterdark" : "her");
+      apply();
+      mq.addEventListener("change", apply);
+    </script>
+    <style>
+      .status-wrap { max-width: 880px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+      .banner {
+        padding: 0.9rem 1.2rem; border-radius: var(--rounded-btn);
+        font-weight: 700; letter-spacing: 0.04em; margin: 1rem 0 1.6rem;
+        color: oklch(20% 0.02 160);
+      }
+      .banner.none { background: oklch(var(--su)); }
+      .banner.minor { background: oklch(var(--wa)); }
+      .banner.major { background: oklch(75% 0.17 55); }
+      .banner.critical { background: oklch(var(--er)); }
+      .group-name { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;
+        color: oklch(var(--bc) / 0.6); margin: 1.4rem 0 0.5rem; }
+      .component { margin-bottom: 0.9rem; }
+      .comp-head { display: flex; justify-content: space-between; align-items: baseline; }
+      .comp-state { font-size: 12px; }
+      .comp-state.operational { color: oklch(var(--su)); }
+      .comp-state.degraded_performance { color: oklch(var(--wa)); }
+      .comp-state.partial_outage { color: oklch(75% 0.17 55); }
+      .comp-state.major_outage { color: oklch(var(--er)); }
+      .bars { display: flex; gap: 2px; margin: 0.55rem 0 0.25rem; }
+      .bars span { flex: 1; height: 26px; border-radius: 2px; background: oklch(var(--bc) / 0.12); }
+      .bars .ok   { background: oklch(var(--su)); }
+      .bars .warn { background: oklch(var(--wa)); }
+      .bars .bad  { background: oklch(var(--er)); }
+      .bar-caption { display: flex; justify-content: space-between;
+        font-size: 10px; color: oklch(var(--bc) / 0.45); }
+      .incident { margin-bottom: 1rem; }
+      .incident h4 { margin: 0 0 0.3rem; font-size: 14px; }
+      .incident .when { font-size: 11px; color: oklch(var(--bc) / 0.55); }
+      .incident ul { list-style: none; margin: 0.4rem 0 0; padding: 0;
+        border-left: 2px solid oklch(var(--b3)); }
+      .incident li { padding: 0.15rem 0 0.15rem 0.8rem; font-size: 12px;
+        color: oklch(var(--bc) / 0.85); }
+      .incident li .when { margin-right: 0.5rem; }
+      .resolved-chip { font-size: 11px; color: oklch(var(--su)); margin-left: 0.5rem; }
+      footer { margin-top: 2.5rem; font-size: 11px; color: oklch(var(--bc) / 0.4); }
+    </style>
+</head>
+<body>
+<header class="navbar">
+    <span class="brand">{{ title | upper }}</span>
+    <span class="live-status">updated {{ updated }}</span>
+</header>
+<div class="status-wrap">
+    <div class="banner {{ overall.indicator }}">{{ overall.banner }}</div>
+
+    {% for group in groups %}
+        {% if group.name %}<div class="group-name">{{ group.name }}</div>{% endif %}
+        {% for c in group.components %}
+        <div class="card component">
+            <div class="comp-head">
+                <span>{{ c.name }}</span>
+                <span class="comp-state {{ c.status }}">{{ c.status_human }}</span>
+            </div>
+            <div class="bars">
+                {%- for b in c.bars -%}
+                <span class="{{ b.cls }}" title="{{ b.label }}"></span>
+                {%- endfor -%}
+            </div>
+            <div class="bar-caption">
+                <span>{{ history_days }} days ago</span>
+                <span>{{ c.uptime_label }}</span>
+                <span>today</span>
+            </div>
+        </div>
+        {% endfor %}
+    {% endfor %}
+
+    {% if open_incidents %}
+    <div class="group-name">Active incidents</div>
+    {% for i in open_incidents %}
+    <div class="card incident">
+        <h4>{{ i.title }}</h4>
+        <span class="when">opened {{ i.opened_human }}</span>
+        <ul>
+            {% for u in i.updates %}
+            <li><span class="when">{{ u.when }}</span>{{ u.message }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if resolved_incidents %}
+    <div class="group-name">Past incidents</div>
+    {% for i in resolved_incidents %}
+    <div class="card incident">
+        <h4>{{ i.title }}<span class="resolved-chip">resolved</span></h4>
+        <span class="when">{{ i.opened_human }} → {{ i.resolved_human }}</span>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <footer>powered by dabping · <a href="/api/status.json">status.json</a></footer>
+</div>
+</body>
+</html>

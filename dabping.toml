@@ -1,0 +1,103 @@
+# dabping example config — see PLAN.md for the full target shape.
+
+[database]
+# classic smokeping cadence is step = 300, pings = 20;
+# shorter values here so dev runs show data quickly
+step = 60
+pings = 10
+# dir = "data"
+# consolidation table; default mirrors smokeping's
+# (raw 1008 rows, then avg/min/max at 12x and 144x the step):
+# [[database.rra]]
+# cf = "average"
+# steps = 1
+# rows = 1008
+# xff = 0.5
+
+[probes.icmp]
+type = "icmp"
+# payload_size = 56
+# timeout_ms = 1500
+# interval_ms = 300
+
+# [probes.tls]
+# type = "tcp"            # rtt = tcp handshake; port from probe or target
+# port = 443
+
+# [probes.dns]
+# type = "dns"            # target host is the dns server
+# lookup = "example.com"  # default: the target's own hostname
+# qtype = "A"
+
+# [probes.web]
+# type = "http"           # any http response counts as a reply
+# url = "https://%host%/"
+# method = "GET"
+
+# [probes.fping]
+# type = "exec"           # parses fping -C style output (ms or '-')
+# command = "fping -C %pings% -q %host%"
+
+# [emitters.prom]
+# type = "prometheus"            # serves GET /metrics on the web listener
+#
+# [emitters.graphite]
+# type = "graphite"              # plaintext push: prefix.target.path.{loss,median,min,max}
+# addr = "graphite.example:2003"
+# prefix = "dabping"
+#
+# [emitters.influx]
+# type = "influx"                # line protocol, batched
+# url = "http://influx:8086/api/v2/write?org=x&bucket=net"   # or v1 /write?db=
+# token = "..."
+# measurement = "dabping"
+
+# [alerts.bigloss]
+# type = "loss"                  # loss (%) | rtt (median ms)
+# pattern = ">10%,>10%,>10%"     # also *, *N* windows, ==U — see alert/pattern.rs
+# comment = "3 rounds with >10% loss"
+# to = ["log:", "email:noc@example.com", "exec:/usr/local/bin/page.sh", "webhook:https://example.com/hook"]
+# repeat_every = "1h"            # optional; default = raise/clear edges only
+# notify_clear = true
+#
+# attach with `alerts = ["bigloss"]` on any target/section (inherited)
+
+# [smtp]                         # only needed for email: notifiers
+# server = "mail.example.com"
+# port = 25
+# from = "dabping@example.com"
+# tls = "none"                   # none | starttls | implicit
+
+# [status]                       # public statuspage at /status (+ /api/status.json)
+# title = "Example Network Status"
+# history_days = 90
+# admin_token = "change-me"      # enables POST /api/status/incident/{id}/update|resolve
+#
+# [status.components.dns]
+# name = "Public DNS"
+# group = "Core Services"
+# targets = ["internet/cloudflare", "internet/quad9"]   # all down = major, some = partial
+# degraded_loss = ">5%,>5%"               # patterns, same DSL as alerts
+# down_loss = "==100%,==100%,==100%"
+# # degraded_rtt = ">100,>100"            # optional, median ms
+# # incident_at = "partial_outage"        # auto-open threshold
+
+# [agents.lon1]                  # remote measurement agents (smokeping slaves)
+# secret = "change-me"           # agent runs: dabping agent -m http://master:8420 -n lon1 -s change-me
+#
+# then on any target/section (inherited):
+#   agents = ["lon1"]            # lon1 also measures it; series stored as path@lon1
+#   nomasterpoll = true          # only the agents measure it
+
+[targets.local]
+title = "Local"
+  [targets.local.loopback]
+  host = "127.0.0.1"
+
+[targets.internet]
+title = "Internet"
+probe = "icmp"
+  [targets.internet.cloudflare]
+  host = "1.1.1.1"
+  [targets.internet.quad9]
+  host = "9.9.9.9"

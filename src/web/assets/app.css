@@ -1,0 +1,209 @@
+/* dabping UI — styling extracted from the DMS app (see PLAN.md).
+   daisyUI-style OKLCH variable themes; markup uses plain CSS classes. */
+
+@font-face {
+  font-family: "B612 Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/b612-mono-latin-400-normal.woff2) format("woff2");
+}
+@font-face {
+  font-family: "B612 Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(/fonts/b612-mono-latin-700-normal.woff2) format("woff2");
+}
+
+/* ---- themes (verbatim from DMS) ---- */
+[data-theme=afterdark] {
+  --p: 60.2142% 0.090465 284.862228;
+  --b2: 26.7726% 0.113367 277.334003;
+  --b3: 24.7574% 0.104834 277.334003;
+  --bc: 85.7575% 0.02438 277.334003;
+  --a: 96.1896% 0.058027 95.617445;
+  --n: 37.5979% 0.121372 280.640415;
+  --nc: 87.5196% 0.024274 280.640415;
+  --b1: 28.7877% 0.1219 277.334003;
+  --in: 82.7586% 0.101277 230.317893;
+  --su: 90.4941% 0.089488 164.150083;
+  --wa: 94.5102% 0.124303 101.539857;
+  --er: 80.769% 0.103486 19.57064;
+}
+[data-theme=her] {
+  --p: 63.7905% 0.075538 19.362126;
+  --b2: 32.243% 0.09643 24.310124;
+  --b3: 29.8162% 0.089172 24.310124;
+  --bc: 86.934% 0.020738 24.310124;
+  --a: 96.1896% 0.058027 95.617445;
+  --n: 43.0563% 0.103113 22.381898;
+  --nc: 88.6113% 0.020623 22.381898;
+  --b1: 34.6699% 0.103688 24.310124;
+  --in: 82.7586% 0.101277 230.317893;
+  --su: 90.4941% 0.089488 164.150083;
+  --wa: 94.5102% 0.124303 101.539857;
+  --er: 80.769% 0.103486 19.57064;
+}
+[data-theme=clays] {
+  --p: 66.584% 0.157422 58.31834;
+  --b2: 25.9585% 0.069004 45.635161;
+  --b3: 24.0046% 0.06381 45.635161;
+  --bc: 85.5825% 0.014839 45.635161;
+  --a: 96.1896% 0.058027 95.617445;
+  --n: 47.3189% 0.124699 46.200651;
+  --nc: 89.4638% 0.02494 46.200651;
+  --b1: 27.9124% 0.074197 45.635161;
+  --in: 82.7586% 0.101277 230.317893;
+  --su: 90.4941% 0.089488 164.150083;
+  --wa: 94.5102% 0.124303 101.539857;
+  --er: 80.769% 0.103486 19.57064;
+}
+[data-theme=sky] {
+  --p: 75.3513% 0.138989 232.66148;
+  --b2: 27.2913% 0.058813 243.15707;
+  --b3: 25.2371% 0.054386 243.15707;
+  --bc: 85.8691% 0.012648 243.15707;
+  --a: 96.1896% 0.058027 95.617445;
+  --n: 39.123% 0.084527 240.875917;
+  --nc: 87.8246% 0.016905 240.875917;
+  --b1: 29.3455% 0.063239 243.15707;
+  --in: 82.7586% 0.101277 230.317893;
+  --su: 90.4941% 0.089488 164.150083;
+  --wa: 94.5102% 0.124303 101.539857;
+  --er: 80.769% 0.103486 19.57064;
+}
+[data-theme=stones] {
+  --p: 55.1019% 0.023361 264.363742;
+  --b2: 24.9691% 0.005847 34.297556;
+  --b3: 23.0897% 0.005407 34.297556;
+  --bc: 85.3697% 0.001257 34.297556;
+  --a: 96.1896% 0.058027 95.617445;
+  --n: 44.4417% 0.009597 73.638981;
+  --nc: 88.8883% 0.001919 73.638981;
+  --b1: 26.8485% 0.006287 34.297556;
+  --in: 82.7586% 0.101277 230.317893;
+  --su: 90.4941% 0.089488 164.150083;
+  --wa: 94.5102% 0.124303 101.539857;
+  --er: 80.769% 0.103486 19.57064;
+}
+:root {
+  --rounded-box: 1rem;
+  --rounded-btn: 0.5rem;
+}
+
+/* ---- base ---- */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: "B612 Mono", ui-monospace, monospace;
+  font-size: 14px;
+  background: oklch(var(--b1));
+  color: oklch(var(--bc));
+}
+a { color: oklch(var(--bc)); text-decoration: none; }
+a:hover { color: oklch(var(--a)); }
+
+/* ---- navbar ---- */
+.navbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.6rem 1.5rem;
+  background: oklch(var(--b2));
+  border-bottom: 1px solid oklch(var(--b3));
+  position: sticky; top: 0; z-index: 10;
+}
+.brand {
+  font-weight: 700; letter-spacing: 0.16em; color: oklch(var(--a));
+  display: flex; align-items: center; gap: 0.6rem;
+}
+.nav-right { display: flex; align-items: center; gap: 1rem; }
+.live-status { font-size: 12px; color: oklch(var(--bc) / 0.7); }
+.live-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: oklch(var(--bc) / 0.3); vertical-align: 1px; margin-right: 6px;
+}
+.live-dot.on { background: oklch(var(--su)); }
+
+/* ---- dropdown (theme picker) ---- */
+details.dropdown { position: relative; }
+details.dropdown summary {
+  list-style: none; cursor: pointer;
+  padding: 0.3rem 0.8rem; border-radius: var(--rounded-btn);
+  border: 1px solid oklch(var(--b3)); font-size: 12px;
+}
+details.dropdown summary:hover { background: oklch(var(--b3)); }
+details.dropdown ul {
+  position: absolute; right: 0; margin: 0.3rem 0 0; padding: 0.4rem; list-style: none;
+  background: oklch(var(--b2)); border: 1px solid oklch(var(--b3));
+  border-radius: var(--rounded-btn); min-width: 9rem; z-index: 20;
+}
+details.dropdown button {
+  all: unset; display: block; width: 100%; cursor: pointer;
+  padding: 0.35rem 0.6rem; border-radius: 0.3rem; font-size: 12px;
+  font-family: inherit; color: oklch(var(--bc));
+}
+details.dropdown button:hover { background: oklch(var(--n)); color: oklch(var(--nc)); }
+details.dropdown button.active { color: oklch(var(--a)); }
+
+/* ---- layout ---- */
+.layout { display: flex; min-height: calc(100vh - 49px); }
+aside {
+  width: 270px; flex: none; padding: 1rem;
+  background: oklch(var(--b2)); border-right: 1px solid oklch(var(--b3));
+}
+main { flex: 1; padding: 1.25rem 1.5rem; min-width: 0; }
+
+/* ---- target tree ---- */
+.tree ul { list-style: none; margin: 0; padding-left: 0.9rem; }
+.tree > ul { padding-left: 0; }
+.tree li { margin: 0.15rem 0; }
+.tree .section > a { font-weight: 700; color: oklch(var(--bc) / 0.85); font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.08em; }
+.tree .section > a:hover { color: oklch(var(--a)); }
+.tree .leaf a {
+  display: block; padding: 0.2rem 0.5rem; border-radius: 0.3rem; font-size: 13px;
+  color: oklch(var(--bc) / 0.8);
+}
+.tree .leaf a:hover { background: oklch(var(--b3)); color: oklch(var(--bc)); }
+.tree .leaf a.active { background: oklch(var(--n)); color: oklch(var(--nc)); }
+
+/* ---- cards / views ---- */
+.card {
+  background: oklch(var(--b2)); border: 1px solid oklch(var(--b3));
+  border-radius: var(--rounded-box); padding: 1.1rem 1.25rem; margin-bottom: 1.1rem;
+}
+.card h3 { margin: 0 0 0.6rem; font-size: 13px; color: oklch(var(--bc) / 0.8);
+  font-weight: 700; }
+.view-head { margin: 0 0 1rem; }
+.view-head h1 { margin: 0; font-size: 19px; letter-spacing: 0.05em; }
+.view-head .sub { font-size: 12px; color: oklch(var(--bc) / 0.6); margin-top: 0.2rem; }
+.view-head .sub b { color: oklch(var(--a)); font-weight: 400; }
+
+.grid {
+  display: grid; gap: 1.1rem;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+}
+.grid .card { margin: 0; }
+.grid .card a.tname { font-weight: 700; }
+.grid .card .thost { font-size: 11px; color: oklch(var(--bc) / 0.55); margin: 0.1rem 0 0.5rem; }
+
+.graphwrap { position: relative; }
+canvas.graph { display: block; width: 100%; height: 220px; }
+canvas.graph.mini { height: 130px; }
+.empty-note {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: oklch(var(--bc) / 0.45);
+}
+
+/* ---- legend / tooltip ---- */
+.legend { display: flex; flex-wrap: wrap; gap: 0.8rem; font-size: 11px;
+  color: oklch(var(--bc) / 0.7); margin: 0.4rem 0 1rem; }
+.legend .chip { display: inline-block; width: 14px; height: 4px; border-radius: 2px;
+  vertical-align: 2px; margin-right: 4px; }
+#tooltip {
+  position: fixed; pointer-events: none; z-index: 50; display: none;
+  background: oklch(var(--b3)); border: 1px solid oklch(var(--n));
+  border-radius: 0.4rem; padding: 0.45rem 0.6rem; font-size: 11px; line-height: 1.6;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.35);
+}
+#tooltip b { color: oklch(var(--a)); font-weight: 400; }

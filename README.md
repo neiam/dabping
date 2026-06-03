@@ -2,34 +2,47 @@
 
 Network latency monitoring in a single static binary — a Rust reimplementation
 of [SmokePing](https://oss.oetiker.ch/smokeping/) crossed with
-[vaping](https://github.com/20c/vaping). Smoke graphs, hierarchical targets,
-pattern alerting, a Statuspage-style public status page, TSDB emitters, and
-distributed agents. No Perl, no RRDtool, no node toolchain.
+[vaping](https://github.com/20c/vaping), plus an Atlassian-Statuspage-style
+public status page. No Perl, no RRDtool, no node toolchain.
+
+**Status: v0.1.0 — feature-complete.** All nine milestones from `PLAN.md` are
+implemented, unit-tested (59 tests), and verified live — including a
+real-world run against dms.neiam.org (icmp ~11ms / tls ~10ms / https ~45ms,
+which is exactly the layered story the probe variety exists to tell).
 
 ## Features
 
 - **Smoke graphs** — N pings per round (default 20 every 300s); the full RTT
   distribution is stored and rendered as the classic smoke band with a
   loss-colored median line.
-- **Probes** — icmp (native v4/v6, unprivileged ping sockets), tcp (handshake
-  time), dns (query a server directly), http(s) (full fetch, no connection
-  reuse), exec (anything that prints fping-style output).
+- **Probes** — `icmp` (native v4/v6, unprivileged ping sockets), `tcp`
+  (handshake time), `dns` (query a server directly, hand-rolled RFC 1035),
+  `http(s)` (full fetch, connection reuse disabled so every ping pays
+  connect+TLS), `exec` (anything that prints fping `-C` style output).
+  Multi-instance probes; `probe`/`port`/`lookup` inherit down the target tree.
 - **RRD-style storage** — fixed-size memory-mapped series files with
-  AVERAGE/MIN/MAX consolidation; SmokePing's default retention table.
-- **Web UI** — target tree, per-target detail at 3h/30h/10d/360d,
-  drag-to-zoom (double-click to reset), live WebSocket updates, top-N charts,
-  multi-host compare, theme switcher.
+  AVERAGE/MIN/MAX consolidation and xff; SmokePing's default retention table.
+- **Web UI** — target tree, section overviews, detail pages at
+  3h/30h/10d/360d, drag-to-zoom (double-click resets), live WebSocket
+  updates, top-N charts (slowest/lossiest), multi-host compare, 5 OKLCH
+  themes (DMS house style, B612 Mono), all embedded.
 - **Alerts** — SmokePing's pattern DSL (`>10%,>10%,>10%`, `*N*` windows,
-  `==U`), edge-triggered with clears and optional repeats; log / exec /
-  webhook / email notifiers.
-- **Status page** — `/status`: named components over targets, auto-opened
-  incidents persisted as JSONL, 90-day uptime bars, Statuspage-compatible
-  `/api/status.json`.
+  `==U` unknowns) over loss% or median ms; edge-triggered with clears and
+  optional `repeat_every`; `log:` / `exec:` / `webhook:` / `email:` notifiers.
+- **Status page** — `/status`: named components mapped to targets, severity
+  derived from the same pattern engine (operational → degraded → partial →
+  major), auto-opened/auto-resolved incidents persisted as a JSONL event log,
+  90-day uptime bars, Statuspage-compatible `/api/status.json`, token-gated
+  manual incident updates.
 - **Emitters** — Prometheus `/metrics`, Graphite plaintext, InfluxDB line
-  protocol.
-- **Distributed** — `dabping agent` on remote hosts pulls its assignment from
-  the master and pushes results back (buffered while offline); per-agent
-  series overlay on the graphs. `nomasterpoll` for agent-only targets.
+  protocol (v1/v2), all backpressure-safe (drop + warn, never block probing).
+- **Distributed** — `dabping agent` (same binary) pulls its assignment from
+  the master and pushes results back, buffering up to 10k rounds while
+  offline; per-agent series (`path@agent`) drawn as dashed overlays;
+  `nomasterpoll` for agent-only targets.
+- **Ops** — `SIGHUP` hot reload (new config validated first; broken file
+  keeps the old one running; agents re-fetch their assignment), hardened
+  systemd unit, Dockerfile.
 
 ## Quickstart
 
@@ -40,87 +53,135 @@ cargo build --release
 ./target/release/dabping run                   # daemon + web UI on :8420
 ```
 
-Minimal `dabping.toml`:
+Minimal config:
 
 ```toml
 [database]
-step = 300        # seconds between rounds
-pings = 20        # measurements per round
+step = 300
+pings = 20
 
 [targets.internet]
 title = "Internet"
   [targets.internet.cloudflare]
   host = "1.1.1.1"
-  [targets.internet.quad9]
-  host = "9.9.9.9"
 ```
 
-The shipped `dabping.toml` documents every section (probes, alerts, smtp,
-status page, emitters, agents) in commented form.
+The shipped `dabping.toml` documents every section in commented form
+(probes, emitters, alerts, smtp, status page, agents).
 
 ## Subcommands
 
 | command | |
 |---|---|
 | `run` | the daemon: scheduler + web UI/API |
-| `agent -m URL -n NAME -s SECRET` | run as a remote measurement agent |
+| `agent -m URL -n NAME -s SECRET` | remote measurement agent (`DABPING_AGENT_SECRET` works too) |
 | `once <host>` | a single ICMP round, printed; exits 1 on total loss |
 | `check-config` | validate and print the flattened target list |
 | `dump <target> -r 3h [--cf max] [--json]` | print stored data |
-
-`kill -HUP` reloads the config (validated first — a broken file keeps the old
-config running). On agents, HUP re-fetches the assignment from the master.
+| `seed <target> --span 30h` | *(hidden)* synthetic demo history for UI work — stop the daemon first; it won't overwrite data newer than what it writes |
 
 ## ICMP privileges
 
-dabping tries an unprivileged ping socket first, controlled by
-`sysctl net.ipv4.ping_group_range` (most distros allow all groups; systemd
-sets it). Fallback is a raw socket:
+Unprivileged ping sockets are tried first (`sysctl net.ipv4.ping_group_range`;
+most distros allow them). Raw-socket fallback needs:
 
 ```sh
 sudo setcap cap_net_raw+ep $(command -v dabping)
 ```
 
-or `AmbientCapabilities=CAP_NET_RAW` in the unit — see
-`deploy/dabping.service`, which also handles hardening and `ExecReload`.
+or `AmbientCapabilities=CAP_NET_RAW` — see `deploy/dabping.service`.
 
 ## Docker
 
 ```sh
-docker build -t dabping .
+docker build -t dabping .     # alpine multi-stage; image not yet CI-tested
 docker run -v ./dabping.toml:/etc/dabping/dabping.toml -v dabping-data:/data -p 8420:8420 dabping
 ```
 
-## Distributed agents
+---
 
-Master:
+## Architecture (for picking this back up)
 
-```toml
-[agents.lon1]
-secret = "change-me"
+One binary crate, enum dispatch over closed sets, everything async on tokio.
 
-[targets.internet.cloudflare]
-host = "1.1.1.1"
-agents = ["lon1"]        # lon1 measures it too → series "…/cloudflare@lon1"
-# nomasterpoll = true    # only the agents measure it
+```
+src/
+  main.rs            clap CLI; run() loops on Outcome::Reload (SIGHUP)
+  config.rs          serde TOML model; tree flattening with inheritance
+                     (probe/port/lookup/alerts/agents/nomasterpoll);
+                     ALL validation happens at load — check-config catches
+                     bad patterns, unknown refs, missing ports, etc.
+  scheduler.rs       per-target tasks, jittered across the step window;
+                     run_targets() core shared with agent mode;
+                     wait_for_signal() → Outcome::{Quit,Reload}
+  probe/             ProbeInstance enum (icmp/tcp/dns/http/exec);
+                     RoundResult { sent, rtts } is the universal currency;
+                     icmp.rs has the DGRAM-then-RAW socket dance
+  store/             the RRD replacement
+    series.rs        on-disk format (documented at the top of the file):
+                     slot index = pure fn of time, torn rows self-invalidate
+                     via their ts field, consolidation accumulators persist
+                     in the header so windows survive restarts
+    mod.rs           Store::record/fetch; archive selection by coverage +
+                     point budget with stride fallback; target path charset
+                     ('@' reserved for agent series)
+  emit/              Emitter trait (sync fn emit(&RoundResult)); Log, Store,
+                     Live(ws), Alerter, Status, Prom, Graphite, Influx all
+                     hang off the same Vec<Box<dyn Emitter>> — agent-pushed
+                     rounds re-enter this same pipeline on the master
+  alert/             pattern.rs: the DSL (right-anchored, backtracking *N*);
+                     mod.rs: per-(alert,target) edge-trigger state machine;
+                     notify.rs: dispatch fan-out
+  status/            components → severity via the same Pattern type;
+                     incidents = replayable JSONL event log (no sqlite)
+  agent/             wire types (Assignment/WireRound), agent run loop,
+                     PushEmitter with offline ring buffer
+  web/               axum: JSON API + ws + /metrics + /status (minijinja,
+                     templates/) + agent endpoints; assets/ is the SPA
+                     (vanilla JS, canvas smoke renderer in app.js —
+                     drawSmoke/drawAgentLine/drawCompare)
 ```
 
-Agent (same binary):
+Key decisions and why:
+- **No rrdtool/C deps** — own mmap format, same DS shape as SmokePing's RRDs
+  (loss, median, sorted ping_1..N) so smoke renders at every resolution.
+- **Enum dispatch for probes/emitters** — closed in-crate sets; no
+  async-trait boxing. Add a probe = new variant + config struct + one match
+  arm in `probe/mod.rs` + validation-by-construction in `from_config`.
+- **minijinja for templates** (house standard), DMS OKLCH themes verbatim in
+  `app.css` (source tokens in `design/dms-themes.css`).
+- **Same binary for master/agent**; slimming via cargo features is a noted
+  option in PLAN.md but not done.
+- **JSONL for incidents** — append-only, crash-safe, replayed at startup.
+
+## Development workflow
 
 ```sh
-dabping agent --master http://master:8420 --name lon1 --secret change-me
-# secret also via DABPING_AGENT_SECRET
+cargo test                                   # 59 tests, all hermetic
+dabping seed net/cf --span 30h               # fake history incl. loss events
+RUST_LOG=dabping=debug dabping run           # request-level logging
 ```
 
-## Development
+- Debug builds serve `src/web/assets/` **live from disk** (rust-embed);
+  release builds embed them. Edit JS/CSS, refresh, no rebuild.
+- **Headless UI verification on this machine**: chromium headless is broken
+  (loads nothing, any flags); use
+  `firefox --no-remote --headless --profile $(mktemp -d) --screenshot out.png
+  'http://127.0.0.1:8420/?snap#/t/path'` — `?snap` holds the load event via
+  `/api/holdload` until the graphs are drawn, `127.0.0.1` not `localhost`.
+- JS gotcha that already bit once: bare `isFinite(null) === true`; always
+  `Number.isFinite` (JSON NaN arrives as `null`).
+- Changing `step`/`pings`/`rra` invalidates existing series files on purpose
+  (clear error at startup) — move the data dir aside.
+- A round is recorded only if newer than the series' last update (out-of-order
+  pushes and double-seeds are silently skipped).
 
-```sh
-cargo test
-dabping seed internet/cloudflare --span 30h   # synthetic demo history (stop the daemon first)
-```
+## Not done / ideas
 
-The UI is plain HTML/CSS/JS embedded at build time (live from disk in debug
-builds). `?snap` on any UI URL holds the page's load event until graphs are
-drawn — useful for headless screenshots.
+- SmokePing `.rrd` import (would parse `rrdtool dump` XML)
+- DYNAMIC targets (dynamic-IP check-ins), per-agent alerting
+- status-page RSS/Atom; agent-slim build behind a cargo feature
+- server-side PNG graphs for no-JS clients; auth for the operator UI
+  (currently: bind to localhost or front with a reverse proxy)
 
-See `PLAN.md` for the architecture and milestone history.
+`PLAN.md` has the original design and the milestone-by-milestone history.

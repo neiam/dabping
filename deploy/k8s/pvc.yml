@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dabping-data
+  namespace: dabping
+spec:
+  accessModes:
+    # Single writer (dms is RWX only because its workers share the volume).
+    - ReadWriteOnce
+  resources:
+    requests:
+      # The native store is RRD-ish: fixed-size ring buffers per target.
+      # 5Gi is generous headroom for incident history and many targets.
+      storage: 5Gi
+  storageClassName: openebs-zfspv

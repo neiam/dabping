@@ -1,0 +1,149 @@
+# dabping on k8s — generic manifests, synced by Argo CD (Application lives
+# in the private argo repo). The `dabping-config` ConfigMap referenced below
+# is NOT defined here: the fleet target list ships from the private repo as
+# its own Argo Application, so this public repo stays config-free.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dabping
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dabping
+  namespace: dabping
+  labels:
+    name: dabping
+    keel.sh/policy: force
+    keel.sh/trigger: poll
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: dabping
+  # Single replica writing an RWO volume: Recreate avoids two pods racing
+  # on the data store during a rollout. Missing one probe round is fine;
+  # overlapping writers are not.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        name: dabping
+    spec:
+      securityContext:
+        # ICMP uses unprivileged ping sockets (the image deliberately has
+        # no setcap — file capabilities break exec in rootless containers).
+        # ping_group_range is in the kubelet's safe-sysctl set, so this
+        # needs no privileged pod.
+        sysctls:
+          - name: net.ipv4.ping_group_range
+            value: "0 2147483647"
+        # The image runs as `dabping` (uid/gid 1000).
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsGroup: 1000
+      # Same story as dms: OpenEBS ZFS LocalPV ignores fsGroup, so a fresh
+      # PVC is root-owned until this one-shot chown.
+      initContainers:
+        - name: chown-data
+          image: busybox:1.36
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          command: ["sh", "-c", "chown -R 1000:1000 /data && chmod -R u+rwX,g+rwX /data"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      containers:
+        - name: dabping
+          image: ghcr.io/neiam/dabping:latest
+          imagePullPolicy: Always
+          # ENTRYPOINT is `dabping -c /etc/dabping/dabping.toml`, CMD `run`.
+          ports:
+            - containerPort: 8420
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            # NOTE: config changes don't restart the pod on their own —
+            # `kubectl rollout restart deployment/dabping -n dabping`
+            # after editing the ConfigMap.
+            - name: config
+              mountPath: /etc/dabping
+              readOnly: true
+          # /metrics always 200s when the server is up.
+          readinessProbe:
+            httpGet: { path: /metrics, port: 8420 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /metrics, port: 8420 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: dabping-data
+        - name: config
+          configMap:
+            name: dabping-config
+      # ghcr.io/neiam/dabping must be a public package for anonymous pulls.
+      # If it's kept private, create a ghcr token secret and uncomment:
+      # imagePullSecrets:
+      #   - name: ghcr-pull
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dabping-svc
+  namespace: dabping
+spec:
+  ports:
+    - port: 80
+      targetPort: 8420
+      protocol: TCP
+  selector:
+    name: dabping
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: dabping
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dabping-ingress
+  namespace: dabping
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: "traefik"
+    # Listen on both Traefik entrypoints. The middleware above redirects
+    # http → https for the `web` (port 80) entrypoint, so the app itself
+    # never has to issue a 301.
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.middlewares: dabping-redirect-https@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - dabping.neiam.org
+      secretName: dabping-tls
+  rules:
+    - host: dabping.neiam.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dabping-svc
+                port:
+                  number: 80

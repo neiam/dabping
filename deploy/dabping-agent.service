@@ -1,0 +1,28 @@
+# dabping measurement agent — one per remote VPS.
+# Only --name and the secret differ between hosts.
+# Secret file: /etc/dabping/agent.env containing DABPING_AGENT_SECRET=…
+
+[Unit]
+Description=dabping agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/dabping agent --master https://dab.example.org --name CHANGEME
+EnvironmentFile=/etc/dabping/agent.env
+# SIGHUP makes the agent re-fetch its assignment from the master
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+
+User=dabping
+DynamicUser=yes
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

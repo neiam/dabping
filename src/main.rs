@@ -82,6 +82,14 @@ enum Cmd {
         #[arg(long)]
         json: bool,
     },
+    /// Generate a secret for a new agent plus the config to wire it up
+    GenAgent {
+        /// Agent name, e.g. lon1
+        name: String,
+        /// Master base URL, rendered into the agent-side command
+        #[arg(short, long, default_value = "https://dab.example.org")]
+        master: String,
+    },
     /// Dev helper: write synthetic demo history for a target.
     /// Stop the daemon first — two processes must not map the same series.
     #[command(hide = true)]
@@ -116,8 +124,50 @@ async fn main() -> Result<()> {
         Cmd::Dump { target, range, cf, max_points, json } => {
             dump(&cli.config, &target, &range, cf, max_points, json)
         }
+        Cmd::GenAgent { name, master } => gen_agent(&name, &master),
         Cmd::Seed { target, span } => seed(&cli.config, &target, &span),
     }
+}
+
+/// 32 bytes of OS entropy, hex-encoded (getrandom: portable across
+/// linux/macos/windows/bsd, no device-file assumptions).
+fn agent_secret() -> Result<String> {
+    let mut buf = [0u8; 32];
+    getrandom::fill(&mut buf).context("os entropy source unavailable")?;
+    Ok(buf.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+fn gen_agent(name: &str, master: &str) -> Result<()> {
+    // the name ends up in series paths ("target@name") and headers
+    if name.is_empty()
+        || !name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+    {
+        anyhow::bail!(
+            "agent name {name:?} may only contain letters, digits, '_', '-' and '.'"
+        );
+    }
+    let secret = agent_secret()?;
+    println!(
+        "\
+# ---- master: add to its config, then `systemctl reload dabping` ----
+
+[agents.{name}]
+secret = \"{secret}\"
+
+# attach to targets/sections with:  agents = [\"{name}\"]
+
+# ---- agent host ({name}) ----
+
+install -m 600 /dev/null /etc/dabping/agent.env
+echo 'DABPING_AGENT_SECRET={secret}' > /etc/dabping/agent.env
+
+# bare metal (deploy/dabping-agent.service) or ad hoc:
+dabping agent --master {master} --name {name}
+
+# sanity check from the agent host:
+curl -H 'X-Dabping-Agent: {name}' -H 'X-Dabping-Secret: {secret}' {master}/api/agent/config"
+    );
+    Ok(())
 }
 
 /// Fabricate plausible rounds: a slow sine swell, a latency step, a couple
@@ -358,4 +408,26 @@ fn fmt_ms(secs: f64) -> String {
 
 fn fmt_pct(v: f64) -> String {
     if v.is_nan() { "-".into() } else { format!("{v:.1}") }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{agent_secret, gen_agent};
+
+    #[test]
+    fn secrets_are_long_hex_and_unique() {
+        let a = agent_secret().unwrap();
+        let b = agent_secret().unwrap();
+        assert_eq!(a.len(), 64);
+        assert!(a.bytes().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn gen_agent_validates_names() {
+        assert!(gen_agent("lon1", "https://x").is_ok());
+        assert!(gen_agent("lon 1", "https://x").is_err());
+        assert!(gen_agent("", "https://x").is_err());
+        assert!(gen_agent("a@b", "https://x").is_err());
+    }
 }

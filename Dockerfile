@@ -1,16 +1,17 @@
 FROM rust:1-alpine AS build
-RUN apk add --no-cache musl-dev
+# build-base: ring (rustls) needs a C compiler on musl
+RUN apk add --no-cache build-base
 WORKDIR /src
-COPY Cargo.toml Cargo.lock* ./
+COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 RUN cargo build --release
 
 FROM alpine:3
-RUN apk add --no-cache libcap-utils \
-    && adduser -D -H dabping
+RUN adduser -D -H dabping
 COPY --from=build /src/target/release/dabping /usr/local/bin/dabping
-# raw-socket fallback for environments without ping_group_range
-RUN setcap cap_net_raw+ep /usr/local/bin/dabping
+# ICMP uses unprivileged ping sockets (no setcap: file capabilities break
+# exec in rootless containers). podman allows them by default; for docker:
+#   docker run --sysctl net.ipv4.ping_group_range="0 2147483647" …
 
 USER dabping
 WORKDIR /data

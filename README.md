@@ -18,7 +18,9 @@ which is exactly the layered story the probe variety exists to tell).
 - **Probes** — `icmp` (native v4/v6, unprivileged ping sockets), `tcp`
   (handshake time), `dns` (query a server directly, hand-rolled RFC 1035),
   `http(s)` (full fetch, connection reuse disabled so every ping pays
-  connect+TLS), `exec` (anything that prints fping `-C` style output).
+  connect+TLS), `phoenix` (Elixir/Phoenix channel heartbeats over one
+  WebSocket per round — app-level BEAM latency; `scripts/phx-ping.py` is the
+  standalone equivalent), `exec` (anything that prints fping `-C` output).
   Multi-instance probes; `probe`/`port`/`lookup` inherit down the target tree.
 - **RRD-style storage** — fixed-size memory-mapped series files with
   AVERAGE/MIN/MAX consolidation and xff; SmokePing's default retention table.
@@ -77,6 +79,7 @@ The shipped `dabping.toml` documents every section in commented form
 | `agent -m URL -n NAME -s SECRET` | remote measurement agent (`DABPING_AGENT_SECRET` works too) |
 | `once <host>` | a single ICMP round, printed; exits 1 on total loss |
 | `check-config` | validate and print the flattened target list |
+| `gen-agent <name> [-m URL]` | mint an agent secret + the master/agent config snippets |
 | `dump <target> -r 3h [--cf max] [--json]` | print stored data |
 | `seed <target> --span 30h` | *(hidden)* synthetic demo history for UI work — stop the daemon first; it won't overwrite data newer than what it writes |
 
@@ -91,12 +94,76 @@ sudo setcap cap_net_raw+ep $(command -v dabping)
 
 or `AmbientCapabilities=CAP_NET_RAW` — see `deploy/dabping.service`.
 
-## Docker
+## Containers
 
 ```sh
-docker build -t dabping .     # alpine multi-stage; image not yet CI-tested
-docker run -v ./dabping.toml:/etc/dabping/dabping.toml -v dabping-data:/data -p 8420:8420 dabping
+podman build -t dabping .
+podman run -d --sysctl net.ipv4.ping_group_range="0 65535" \
+  -v ./dabping.toml:/etc/dabping/dabping.toml:ro -v dabping-data:/data \
+  -p 8420:8420 dabping
 ```
+
+The image runs non-root and uses unprivileged **ping sockets** — the
+`--sysctl` is required for ICMP (same flag on docker; use `0 2147483647`
+there, rootless podman needs the range within its mapped gids). There is
+deliberately no setcap in the image: file capabilities break `exec` under
+rootless podman. CI builds amd64+arm64 images to GHCR
+(`.github/workflows/container.yml`) on pushes to main and `v*` tags.
+
+## Multi-region agent deployment
+
+The reference topology: master at home, agents on VPSes in par/ams/nyc/sea.
+Agents are **stateless** (no config file, no data dir) — they pull their
+assignment from the master at startup and buffer up to ~10k rounds (days at
+step 300) through master outages.
+
+Master config:
+
+```toml
+[agents.par]
+secret = "per-agent-secret-1"   # one distinct secret per agent
+[agents.ams]
+secret = "per-agent-secret-2"
+[agents.nyc]
+secret = "per-agent-secret-3"
+[agents.sea]
+secret = "per-agent-secret-4"
+
+[targets.internet]
+title = "Internet"
+agents = ["par", "ams", "nyc", "sea"]   # inherited by every child
+  [targets.internet.cloudflare]
+  host = "1.1.1.1"
+
+[targets.regional.eu-thing]
+host = "some-eu-host.example"
+agents = ["par", "ams"]                 # only the EU vantage points
+nomasterpoll = true                     # master's own view not wanted
+```
+
+Each leaf then has the master's series plus `path@par`, `path@ams`, … —
+rendered as dashed per-agent overlays with a legend.
+
+On each VPS, either the bare-metal unit (`deploy/dabping-agent.service`) or
+the podman quadlet (`deploy/dabping-agent.container`); only `--name` and the
+secret differ per host. The secret lives in `/etc/dabping/agent.env` as
+`DABPING_AGENT_SECRET=…`.
+
+Operational notes:
+
+- **TLS**: dabping speaks plain HTTP — front the master with a reverse proxy
+  (`https://dab.example.org` → `127.0.0.1:8420`) so secrets cross the
+  internet inside TLS. Agents handle `https://` master URLs natively.
+- **Config changes**: edit the master config, `systemctl reload dabping` on
+  the master, then `systemctl reload dabping-agent` on each VPS — agents
+  re-fetch their assignment on SIGHUP, no restart needed.
+- **Sanity check from a VPS**:
+  `curl -H 'X-Dabping-Agent: par' -H 'X-Dabping-Secret: …' https://dab.example.org/api/agent/config`
+  shows exactly what that agent will be told to do.
+- The overlay palette has 6 distinct colors; ≤6 agents per target renders
+  cleanly.
+- **Known gap**: alerts and status components evaluate the master's series
+  only — "down from par specifically" does not page yet (see ideas list).
 
 ---
 

@@ -248,6 +248,7 @@ pub enum ProbeConfig {
     Dns(DnsConfig),
     Http(HttpConfig),
     Exec(ExecConfig),
+    Phoenix(PhoenixConfig),
 }
 
 #[derive(Debug, Deserialize, serde::Serialize)]
@@ -381,6 +382,37 @@ impl HttpConfig {
     }
 }
 
+/// Phoenix-socket probe: RTT = channel heartbeat round-trip.
+/// The target's port override applies (e.g. a dev server on 4000).
+#[derive(Debug, Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PhoenixConfig {
+    /// Socket mount point; "/socket/websocket" for user sockets.
+    #[serde(default = "default_phx_path")]
+    pub path: String,
+    #[serde(default = "default_true")]
+    pub tls: bool,
+    /// Session cookie for auth-gated sockets, e.g. "_app_key=…".
+    pub cookie: Option<String>,
+    #[serde(default = "default_http_timeout_ms")]
+    pub timeout_ms: u64,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+}
+
+fn default_phx_path() -> String {
+    "/live/websocket".into()
+}
+
+impl PhoenixConfig {
+    pub fn timeout(&self) -> Duration {
+        Duration::from_millis(self.timeout_ms)
+    }
+    pub fn interval(&self) -> Duration {
+        Duration::from_millis(self.interval_ms)
+    }
+}
+
 /// External-command probe; see probe/exec.rs for the output contract.
 #[derive(Debug, Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
@@ -438,13 +470,17 @@ impl Config {
     pub fn load(path: &Path) -> Result<Config> {
         let raw = std::fs::read_to_string(path)
             .with_context(|| format!("cannot read config file {}", path.display()))?;
-        let mut cfg: Config = toml::from_str(&raw)
-            .with_context(|| format!("cannot parse {}", path.display()))?;
-        // SmokePing's implicit default: if no probes are configured, provide
-        // a stock "icmp" instance so a bare targets file just works.
-        if cfg.probes.is_empty() {
-            cfg.probes.insert("icmp".into(), ProbeConfig::Icmp(IcmpConfig::default()));
-        }
+        Self::load_str(&raw).with_context(|| format!("cannot parse {}", path.display()))
+    }
+
+    pub fn load_str(raw: &str) -> Result<Config> {
+        let mut cfg: Config = toml::from_str(raw)?;
+        // Implicit default: targets fall back to a probe named "icmp", so
+        // provide a stock instance whenever the config doesn't define one
+        // (defining other probes must not break icmp-by-default targets).
+        cfg.probes
+            .entry("icmp".into())
+            .or_insert(ProbeConfig::Icmp(IcmpConfig::default()));
         cfg.validate()?;
         Ok(cfg)
     }
@@ -570,12 +606,9 @@ impl Config {
 mod tests {
     use super::*;
 
+    // go through the real loader so tests exercise defaulting + validation
     fn parse(s: &str) -> Config {
-        let mut cfg: Config = toml::from_str(s).unwrap();
-        if cfg.probes.is_empty() {
-            cfg.probes.insert("icmp".into(), ProbeConfig::Icmp(IcmpConfig::default()));
-        }
-        cfg
+        Config::load_str(s).unwrap()
     }
 
     #[test]
@@ -611,14 +644,38 @@ mod tests {
 
     #[test]
     fn rejects_unknown_probe_reference() {
-        let cfg = parse(
+        let err = Config::load_str(
             r#"
             [targets.a]
             host = "192.0.2.1"
             probe = "nope"
             "#,
         );
-        assert!(cfg.flatten_targets().is_err());
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn implicit_icmp_survives_other_probes() {
+        // regression: defining any probe used to remove the icmp default,
+        // breaking every target that relied on it
+        let cfg = Config::load_str(
+            r#"
+            [probes.web]
+            type = "http"
+
+            [targets.a]
+            host = "192.0.2.1"
+            [targets.b]
+            host = "192.0.2.2"
+            probe = "web"
+            "#,
+        )
+        .unwrap();
+        let flat = cfg.flatten_targets().unwrap();
+        let by_path: BTreeMap<_, _> =
+            flat.iter().map(|t| (t.path.as_str(), t.probe.as_str())).collect();
+        assert_eq!(by_path["a"], "icmp");
+        assert_eq!(by_path["b"], "web");
     }
 
     #[test]
@@ -649,44 +706,50 @@ mod tests {
 
     #[test]
     fn rejects_unknown_agent_and_orphan_nomasterpoll() {
-        let cfg = parse(
+        let err = Config::load_str(
             r#"
             [targets.a]
             host = "192.0.2.1"
             agents = ["ghost"]
             "#,
-        );
-        assert!(cfg.flatten_targets().unwrap_err().to_string().contains("unknown agent"));
+        )
+        .unwrap_err();
+        assert!(format!("{err:#}").contains("unknown agent"));
 
-        let cfg = parse(
+        let err = Config::load_str(
             r#"
             [targets.a]
             host = "192.0.2.1"
             nomasterpoll = true
             "#,
-        );
-        assert!(cfg.flatten_targets().unwrap_err().to_string().contains("nobody would measure"));
+        )
+        .unwrap_err();
+        assert!(format!("{err:#}").contains("nobody would measure"));
     }
 
     #[test]
     fn rejects_at_sign_in_target_names() {
-        let cfg = parse(
-            r#"
-            [targets."a@b"]
-            host = "192.0.2.1"
-            "#,
+        assert!(
+            Config::load_str(
+                r#"
+                [targets."a@b"]
+                host = "192.0.2.1"
+                "#,
+            )
+            .is_err()
         );
-        assert!(cfg.flatten_targets().is_err());
     }
 
     #[test]
     fn rejects_empty_section() {
-        let cfg = parse(
-            r#"
-            [targets.empty]
-            title = "nothing here"
-            "#,
+        assert!(
+            Config::load_str(
+                r#"
+                [targets.empty]
+                title = "nothing here"
+                "#,
+            )
+            .is_err()
         );
-        assert!(cfg.flatten_targets().is_err());
     }
 }

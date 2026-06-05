@@ -24,6 +24,10 @@ const refreshTimers = new Map();
 
 /* ---------- theme picker ---------- */
 
+// fa-display-style "System" icon for the theme menu
+const SYSTEM_ICON =
+  '<svg class="icon" viewBox="0 0 576 512" aria-hidden="true"><path d="M64 32h448c35 0 64 29 64 64v256c0 35-29 64-64 64H355l9 48h52c13 0 24 11 24 24s-11 24-24 24H160c-13 0-24-11-24-24s11-24 24-24h52l9-48H64c-35 0-64-29-64-64V96c0-35 29-64 64-64zm0 64v224h448V96H64z"/></svg>';
+
 function initThemePicker() {
   const dd = document.getElementById("theme-dd");
   const ul = document.getElementById("theme-list");
@@ -33,8 +37,13 @@ function initThemePicker() {
     for (const t of THEMES) {
       const li = document.createElement("li");
       const b = document.createElement("button");
-      b.textContent = t + (t === current() ? " ✓" : "");
       b.className = t === current() ? "active" : "";
+      if (t === "system") {
+        b.innerHTML = `<span class="label">${SYSTEM_ICON} System</span>`;
+      } else {
+        // swatch scoped to the theme it represents (DMS pattern)
+        b.innerHTML = `<span class="label">${t}</span><span class="swatch" data-theme="${t}"></span>`;
+      }
       b.onclick = () => {
         window.dabpingSetTheme(t);
         dd.open = false;
@@ -660,6 +669,8 @@ window.addEventListener("resize", (() => {
   renderTree();
   route();
   connectLive();
+  if (location.search.includes("themedd")) // screenshot hook, like ?snap
+    document.getElementById("theme-dd").open = true;
   // long ranges don't ride the live feed; refresh everything visible periodically
   setInterval(() => { for (const c of charts) if (c.isConnected) loadGraph(c); },
     Math.max(60, META.step) * 1000);

@@ -38,6 +38,12 @@ type = "icmp"
 # type = "exec"           # parses fping -C style output (ms or '-')
 # command = "fping -C %pings% -q %host%"
 
+# [probes.phx]
+# type = "phoenix"        # rtt = phoenix channel heartbeat over one ws conn
+# path = "/live/websocket" # or /socket/websocket for user sockets
+# tls = true
+# cookie = "_app_key=…"   # for auth-gated sockets; target `port` override applies
+
 # [emitters.prom]
 # type = "prometheus"            # serves GET /metrics on the web listener
 #

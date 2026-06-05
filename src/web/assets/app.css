@@ -104,49 +104,68 @@ body {
 a { color: oklch(var(--bc)); text-decoration: none; }
 a:hover { color: oklch(var(--a)); }
 
-/* ---- navbar ---- */
+/* ---- navbar (daisyUI .navbar: 4rem min-height, like DMS) ---- */
 .navbar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0.6rem 1.5rem;
+  min-height: 4rem;
+  padding: 0.5rem 2rem;
   background: oklch(var(--b2));
   border-bottom: 1px solid oklch(var(--b3));
   position: sticky; top: 0; z-index: 10;
 }
 .brand {
   font-weight: 700; letter-spacing: 0.16em; color: oklch(var(--a));
-  display: flex; align-items: center; gap: 0.6rem;
+  display: flex; align-items: center; gap: 0.5rem;
 }
-.nav-right { display: flex; align-items: center; gap: 1rem; }
-.live-status { font-size: 12px; color: oklch(var(--bc) / 0.7); }
+.nav-right { display: flex; align-items: center; gap: 0.25rem; }
+.live-status { font-size: 12px; color: oklch(var(--bc) / 0.7); margin-right: 0.75rem; }
 .live-dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%;
   background: oklch(var(--bc) / 0.3); vertical-align: 1px; margin-right: 6px;
 }
 .live-dot.on { background: oklch(var(--su)); }
 
-/* ---- dropdown (theme picker) ---- */
+/* fa-fw-style fixed-width inline icons */
+.icon {
+  width: 1em; height: 1em; display: inline-block; fill: currentColor;
+  min-width: 1.25em; vertical-align: -0.125em;
+}
+
+/* ---- dropdown (theme picker) — daisyUI btn-ghost btn-sm + menu ---- */
 details.dropdown { position: relative; }
 details.dropdown summary {
-  list-style: none; cursor: pointer;
-  padding: 0.3rem 0.8rem; border-radius: var(--rounded-btn);
-  border: 1px solid oklch(var(--b3)); font-size: 12px;
+  list-style: none; cursor: pointer; user-select: none;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  height: 2rem; padding: 0 0.75rem;
+  border-radius: var(--rounded-btn);
+  font-size: 0.875rem; font-weight: 600; color: oklch(var(--bc));
 }
-details.dropdown summary:hover { background: oklch(var(--b3)); }
+details.dropdown summary:hover { background: oklch(var(--bc) / 0.1); }
+details[open].dropdown summary { background: oklch(var(--bc) / 0.12); }
 details.dropdown ul {
-  position: absolute; right: 0; margin: 0.3rem 0 0; padding: 0.4rem; list-style: none;
+  position: absolute; right: 0; margin: 0.25rem 0 0; padding: 0.25rem; list-style: none;
   background: oklch(var(--b2)); border: 1px solid oklch(var(--b3));
-  border-radius: var(--rounded-btn); min-width: 9rem; z-index: 20;
+  border-radius: var(--rounded-box); width: 11rem; z-index: 20;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.35);
 }
 details.dropdown button {
-  all: unset; display: block; width: 100%; cursor: pointer;
-  padding: 0.35rem 0.6rem; border-radius: 0.3rem; font-size: 12px;
-  font-family: inherit; color: oklch(var(--bc));
+  all: unset; box-sizing: border-box; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  width: 100%; padding: 0.4rem 0.75rem; border-radius: 0.5rem;
+  font-size: 0.875rem; font-family: inherit; color: oklch(var(--bc));
 }
-details.dropdown button:hover { background: oklch(var(--n)); color: oklch(var(--nc)); }
+details.dropdown button:hover { background: oklch(var(--bc) / 0.1); }
 details.dropdown button.active { color: oklch(var(--a)); }
+details.dropdown button .label { display: flex; align-items: center; gap: 0.5rem; text-transform: capitalize; }
+/* per-theme primary-color swatch: data-theme on the span scopes the vars */
+.swatch {
+  width: 0.75rem; height: 0.75rem; border-radius: 50%; flex: none;
+  border: 1px solid oklch(var(--bc) / 0.2);
+  background: oklch(var(--p));
+}
 
 /* ---- layout ---- */
-.layout { display: flex; min-height: calc(100vh - 49px); }
+.layout { display: flex; min-height: calc(100vh - 65px); }
 aside {
   width: 270px; flex: none; padding: 1rem;
   background: oklch(var(--b2)); border-right: 1px solid oklch(var(--b3));

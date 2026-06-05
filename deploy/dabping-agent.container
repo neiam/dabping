@@ -1,0 +1,29 @@
+# Podman quadlet for a dabping agent.
+# Install to /etc/containers/systemd/dabping-agent.container
+# (or ~/.config/containers/systemd/ for rootless), then:
+#   systemctl daemon-reload && systemctl start dabping-agent
+# Secret file: /etc/dabping/agent.env containing DABPING_AGENT_SECRET=…
+#
+# Agents are stateless: no config file, no volume. The image entrypoint's
+# `-c /etc/dabping/dabping.toml` is ignored in agent mode.
+
+[Unit]
+Description=dabping agent (container)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/gmorell/dabping:latest
+Exec=agent --master https://dab.example.org --name CHANGEME
+EnvironmentFile=/etc/dabping/agent.env
+# ICMP via unprivileged ping sockets (the image runs non-root, no file caps);
+# rootless podman: keep the range within the mapped gids
+Sysctl=net.ipv4.ping_group_range=0 65535
+NoNewPrivileges=true
+
+[Service]
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

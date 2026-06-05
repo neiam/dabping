@@ -2,6 +2,7 @@ pub mod dns;
 pub mod exec;
 pub mod http;
 pub mod icmp;
+pub mod phoenix;
 pub mod tcp;
 
 use std::net::IpAddr;
@@ -79,6 +80,7 @@ pub enum ProbeInstance {
     Dns(dns::DnsProbe),
     Http(http::HttpProbe),
     Exec(exec::ExecProbe),
+    Phoenix(phoenix::PhoenixProbe),
 }
 
 impl ProbeInstance {
@@ -89,6 +91,7 @@ impl ProbeInstance {
             ProbeConfig::Dns(c) => ProbeInstance::Dns(dns::DnsProbe::new(c)?),
             ProbeConfig::Http(c) => ProbeInstance::Http(http::HttpProbe::new(c)?),
             ProbeConfig::Exec(c) => ProbeInstance::Exec(exec::ExecProbe::new(c)),
+            ProbeConfig::Phoenix(c) => ProbeInstance::Phoenix(phoenix::PhoenixProbe::new(c)?),
         })
     }
 
@@ -99,6 +102,7 @@ impl ProbeInstance {
             ProbeInstance::Dns(p) => p.round(&t.path, &t.host, t.lookup.as_deref(), pings).await,
             ProbeInstance::Http(p) => p.round(&t.path, &t.host, pings).await,
             ProbeInstance::Exec(p) => p.round(&t.path, &t.host, pings).await,
+            ProbeInstance::Phoenix(p) => p.round(&t.path, &t.host, t.port, pings).await,
         }
     }
 }

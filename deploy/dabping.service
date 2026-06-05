@@ -1,6 +1,6 @@
 [Unit]
 Description=dabping latency monitor
-Documentation=https://github.com/gmorell/dabping
+Documentation=https://github.com/neiam/dabping
 After=network-online.target
 Wants=network-online.target
 

@@ -155,8 +155,9 @@ Operational notes:
   (`https://dab.example.org` → `127.0.0.1:8420`) so secrets cross the
   internet inside TLS. Agents handle `https://` master URLs natively.
 - **Config changes**: edit the master config, `systemctl reload dabping` on
-  the master, then `systemctl reload dabping-agent` on each VPS — agents
-  re-fetch their assignment on SIGHUP, no restart needed.
+  the master — agents poll hourly and reload themselves when their
+  assignment changed. `systemctl reload dabping-agent` (SIGHUP) on a VPS
+  forces the re-fetch immediately.
 - **Sanity check from a VPS**:
   `curl -H 'X-Dabping-Agent: par' -H 'X-Dabping-Secret: …' https://dab.example.org/api/agent/config`
   shows exactly what that agent will be told to do.

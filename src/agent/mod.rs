@@ -124,14 +124,20 @@ fn client(opts: &AgentOpts) -> Result<reqwest::Client> {
         .context("cannot build http client")
 }
 
+/// How often a running agent re-checks the master for a changed assignment,
+/// so config pushes roll out without touching every agent host.
+/// SIGHUP still forces an immediate re-fetch.
+const REFRESH_INTERVAL: Duration = Duration::from_secs(3600);
+
 /// `dabping agent` entry point: fetch assignment, probe, push.
-/// SIGHUP re-fetches the assignment from the master.
+/// SIGHUP re-fetches the assignment from the master; a changed assignment
+/// is also picked up automatically (REFRESH_INTERVAL polling).
 pub async fn run(opts: AgentOpts) -> Result<()> {
     loop {
         match run_once(&opts).await? {
             crate::scheduler::Outcome::Quit => return Ok(()),
             crate::scheduler::Outcome::Reload => {
-                tracing::info!("SIGHUP: re-fetching assignment from master");
+                tracing::info!("re-fetching assignment from master");
                 continue;
             }
         }
@@ -142,11 +148,15 @@ async fn run_once(opts: &AgentOpts) -> Result<crate::scheduler::Outcome> {
     let client = client(opts)?;
     let cfg_url = endpoint(&opts.master, "config");
 
-    let assignment: Assignment = loop {
+    // raw body kept verbatim: the hourly refresh compares bytes, not parses
+    let (assignment, raw): (Assignment, String) = loop {
         match client.get(&cfg_url).send().await {
-            Ok(resp) if resp.status().is_success() => match resp.json().await {
-                Ok(a) => break a,
-                Err(e) => tracing::error!(error = %e, "bad assignment from master"),
+            Ok(resp) if resp.status().is_success() => match resp.text().await {
+                Ok(body) => match serde_json::from_str(&body) {
+                    Ok(a) => break (a, body),
+                    Err(e) => tracing::error!(error = %e, "bad assignment from master"),
+                },
+                Err(e) => tracing::warn!(error = %e, "reading assignment failed"),
             },
             Ok(resp) if resp.status() == reqwest::StatusCode::UNAUTHORIZED => {
                 anyhow::bail!("master rejected agent credentials (check name/secret)");
@@ -164,7 +174,7 @@ async fn run_once(opts: &AgentOpts) -> Result<crate::scheduler::Outcome> {
         "assignment received"
     );
     if assignment.targets.is_empty() {
-        tracing::warn!("master assigned no targets to this agent; idling (restart after config changes)");
+        tracing::warn!("master assigned no targets to this agent; idling until the assignment changes");
     }
 
     let probes: Arc<HashMap<String, ProbeInstance>> = Arc::new(
@@ -176,11 +186,39 @@ async fn run_once(opts: &AgentOpts) -> Result<crate::scheduler::Outcome> {
     );
     let targets: Vec<FlatTarget> = assignment.targets.into_iter().map(WireTarget::into_flat).collect();
 
-    let push = PushEmitter::spawn(client, endpoint(&opts.master, "results"));
+    let push = PushEmitter::spawn(client.clone(), endpoint(&opts.master, "results"));
     let emitters: Arc<Vec<Box<dyn Emitter>>> = Arc::new(vec![Box::new(LogEmitter), Box::new(push)]);
 
-    crate::scheduler::run_targets(targets, probes, assignment.step, assignment.pings, emitters, None)
-        .await
+    tokio::select! {
+        o = crate::scheduler::run_targets(targets, probes, assignment.step, assignment.pings, emitters, None) => o,
+        _ = assignment_changed(&client, &cfg_url, &raw, REFRESH_INTERVAL) => {
+            tracing::info!("assignment changed on master");
+            Ok(crate::scheduler::Outcome::Reload)
+        }
+    }
+}
+
+/// Resolves once the master hands out an assignment that differs from the
+/// current one. Unreachable master or a bad response just waits for the
+/// next tick — the running probes keep going on the old assignment.
+async fn assignment_changed(
+    client: &reqwest::Client,
+    url: &str,
+    current: &str,
+    interval: Duration,
+) {
+    loop {
+        tokio::time::sleep(interval).await;
+        match client.get(url).send().await {
+            Ok(resp) if resp.status().is_success() => match resp.text().await {
+                Ok(body) if body != current => return,
+                Ok(_) => tracing::debug!("assignment unchanged"),
+                Err(e) => tracing::warn!(error = %e, "assignment refresh failed; will retry"),
+            },
+            Ok(resp) => tracing::warn!(status = %resp.status(), "assignment refresh failed; will retry"),
+            Err(e) => tracing::warn!(error = %e, "assignment refresh failed; will retry"),
+        }
+    }
 }
 
 /// Buffers rounds and ships them to the master every few seconds.
@@ -302,6 +340,36 @@ mod tests {
         let r = w.into_round("a");
         assert_eq!(r.received(), 1);
         assert!(r.addr.is_unspecified());
+    }
+
+    #[tokio::test]
+    async fn refresh_resolves_only_when_assignment_changes() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        let hits = Arc::new(AtomicU32::new(0));
+        let h2 = hits.clone();
+        // same body for the first two polls, then a different one
+        let app = axum::Router::new().route(
+            "/api/agent/config",
+            axum::routing::get(move || {
+                let n = h2.fetch_add(1, Ordering::SeqCst);
+                async move { if n < 2 { "A" } else { "B" } }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!(
+            "http://127.0.0.1:{}/api/agent/config",
+            listener.local_addr().unwrap().port()
+        );
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let client = reqwest::Client::new();
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            assignment_changed(&client, &url, "A", Duration::from_millis(20)),
+        )
+        .await
+        .expect("must resolve once the assignment changes");
+        assert!(hits.load(Ordering::SeqCst) >= 3, "unchanged polls must not resolve");
     }
 
     #[tokio::test]

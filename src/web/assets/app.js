@@ -295,8 +295,8 @@ function smokeBands(ctx, pts, period, X, Y, fill) {
   }
 }
 
-// distinguishable overlay colors for agent series (8 vantage regions)
-const AGENT_COLORS = ["#60a5fa", "#f472b6", "#fbbf24", "#34d399", "#c084fc", "#22d3ee", "#fb7185", "#a3e635"];
+// distinguishable overlay colors for agent series (9 vantage regions)
+const AGENT_COLORS = ["#60a5fa", "#f472b6", "#fbbf24", "#34d399", "#c084fc", "#22d3ee", "#fb7185", "#a3e635", "#e879f9"];
 
 function agentColor(i) {
   return AGENT_COLORS[i % AGENT_COLORS.length];

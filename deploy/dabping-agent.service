@@ -10,7 +10,8 @@ Wants=network-online.target
 [Service]
 ExecStart=/usr/local/bin/dabping agent --master https://dab.example.org --name CHANGEME
 EnvironmentFile=/etc/dabping/agent.env
-# SIGHUP makes the agent re-fetch its assignment from the master
+# SIGHUP makes the agent re-fetch its assignment immediately; it also
+# polls the master hourly and reloads itself when the assignment changed
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=10

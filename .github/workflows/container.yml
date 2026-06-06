@@ -11,6 +11,8 @@ jobs:
     runs-on: arc-runner-set
     steps:
       - uses: actions/checkout@v4
+      # ARC's default runner image ships no compilers; ring (rustls) needs cc
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test

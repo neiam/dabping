@@ -53,22 +53,22 @@
     </script>
 </head>
 <body>
-<header class="navbar">
-    <a href="#" class="brand">DABPING</a>
-    <div class="nav-right">
-        <span class="live-status"><span class="live-dot" id="live-dot"></span><span id="live-text">connecting…</span></span>
-        <details class="dropdown" id="theme-dd">
-            <summary aria-label="Choose theme">
+<header class="navbar bg-base-200 border-b border-base-300 sticky top-0 z-10 px-8 justify-between">
+    <a href="#" class="font-bold tracking-[0.16em] text-accent flex items-center gap-2">DABPING</a>
+    <div class="flex items-center gap-1">
+        <span class="text-xs text-base-content/70 mr-3"><span class="live-dot" id="live-dot"></span><span id="live-text">connecting…</span></span>
+        <details class="dropdown dropdown-end" id="theme-dd">
+            <summary class="btn btn-ghost btn-sm" aria-label="Choose theme">
                 <svg class="icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M256 32C132 32 32 132 32 256s100 224 224 224c30 0 48-18 48-42 0-13-5-22-13-31-8-9-13-18-13-30 0-24 19-42 43-42h51c71 0 108-49 108-112C480 117 379 32 256 32zM116 280a36 36 0 1 1 72 0 36 36 0 1 1-72 0zm40-128a36 36 0 1 1 72 0 36 36 0 1 1-72 0zm136-48a36 36 0 1 1 0 72 36 36 0 1 1 0-72zm68 84a36 36 0 1 1 72 0 36 36 0 1 1-72 0z"/></svg>
                 <span>Theme</span>
             </summary>
-            <ul id="theme-list"></ul>
+            <ul id="theme-list" class="dropdown-content menu menu-sm bg-base-200 border border-base-300 rounded-box w-44 p-1 shadow-lg z-20"></ul>
         </details>
     </div>
 </header>
-<div class="layout">
-    <aside><nav class="tree" id="tree"></nav></aside>
-    <main id="view"></main>
+<div class="flex min-h-[calc(100vh-65px)]">
+    <aside class="w-[270px] flex-none p-4 bg-base-200 border-r border-base-300"><nav id="tree"></nav></aside>
+    <main id="view" class="flex-1 min-w-0 px-6 py-5"></main>
 </div>
 <div id="tooltip"></div>
 </body>

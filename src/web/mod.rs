@@ -180,7 +180,7 @@ pub async fn serve(cfg: config::Web, state: AppState) -> Result<()> {
 }
 
 async fn meta(State(st): State<AppState>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "step": st.step, "pings": st.pings }))
+    Json(serde_json::json!({ "step": st.step, "pings": st.pings, "status": st.status.is_some() }))
 }
 
 async fn tree(State(st): State<AppState>) -> Json<serde_json::Value> {

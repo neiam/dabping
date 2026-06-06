@@ -6,7 +6,7 @@ const RANGES = [
   ["10d", "Last 10 Days"],
   ["360d", "Last 360 Days"],
 ];
-const THEMES = ["system", "afterdark", "her", "clays", "sky", "stones"];
+const THEMES = ["system", "afterdark", "her", "forest", "sky", "clays", "stones", "lofi", "black"];
 // loss buckets: [max loss %, label]; colors resolved from the theme
 const LOSS_BUCKETS = [
   [0, "0%"],
@@ -15,6 +15,19 @@ const LOSS_BUCKETS = [
   [40, "≤40%"],
   [100, ">40%"],
 ];
+
+// shared daisyUI/Tailwind class strings for the view builders (kept as
+// literals in this file so the Tailwind content scanner picks them up)
+const CARD = "card bg-base-200 border border-base-300 p-5 mb-4";
+const GRID_CARD = "card bg-base-200 border border-base-300 p-5";
+const GRID = "grid gap-4 grid-cols-[repeat(auto-fill,minmax(360px,1fr))]";
+const CARD_H3 = "text-[13px] font-bold text-base-content/80 mb-2";
+const HEAD = "mb-4";
+const H1 = "m-0 text-[19px] font-bold tracking-wider";
+const SUB = "text-xs text-base-content/60 mt-1";
+const ACCENT_B = "text-accent font-normal";
+const LEGEND = "flex flex-wrap gap-3 text-[11px] text-base-content/70 mt-2 mb-4";
+const CHIP = "inline-block w-3.5 h-1 rounded-sm align-[2px] mr-1";
 
 let TREE = [];
 let META = { step: 300, pings: 20 };
@@ -37,12 +50,12 @@ function initThemePicker() {
     for (const t of THEMES) {
       const li = document.createElement("li");
       const b = document.createElement("button");
-      b.className = t === current() ? "active" : "";
+      b.className = (t === current() ? "active " : "") + "flex justify-between";
       if (t === "system") {
-        b.innerHTML = `<span class="label">${SYSTEM_ICON} System</span>`;
+        b.innerHTML = `<span class="flex items-center gap-2">${SYSTEM_ICON} System</span>`;
       } else {
         // swatch scoped to the theme it represents (DMS pattern)
-        b.innerHTML = `<span class="label">${t}</span><span class="swatch" data-theme="${t}"></span>`;
+        b.innerHTML = `<span class="flex items-center gap-2 capitalize">${t}</span><span class="swatch" data-theme="${t}"></span>`;
       }
       b.onclick = () => {
         window.dabpingSetTheme(t);
@@ -267,7 +280,7 @@ function drawEmpty(wrap, msg) {
   let note = wrap.querySelector(".empty-note");
   if (!note) {
     note = document.createElement("div");
-    note.className = "empty-note";
+    note.className = "empty-note absolute inset-0 flex items-center justify-center text-xs text-base-content/45";
     wrap.appendChild(note);
   }
   note.textContent = msg;
@@ -393,16 +406,15 @@ function renderTree() {
     for (const n of nodes) {
       const li = document.createElement("li");
       if (n.host) {
-        li.className = "leaf";
         const a = document.createElement("a");
         a.href = `#/t/${n.path}`;
         a.dataset.path = n.path;
         a.textContent = nodeLabel(n);
         li.appendChild(a);
       } else {
-        li.className = "section";
         const a = document.createElement("a");
         a.href = `#/s/${n.path}`;
+        a.className = "uppercase text-xs font-bold tracking-wider text-base-content/85";
         a.textContent = nodeLabel(n);
         li.appendChild(a);
         li.appendChild(build(n.children));
@@ -412,14 +424,24 @@ function renderTree() {
     return ul;
   };
   el.innerHTML = "";
-  el.appendChild(build(TREE));
-  const extra = document.createElement("ul");
-  extra.innerHTML = `<li class="section" style="margin-top:1rem"><a href="#/charts">⚡ charts</a></li>`;
-  el.appendChild(extra);
+  // daisyUI menu: nested <ul>s indent, leaf links get hover/.active styling
+  const root = build(TREE);
+  root.className = "menu menu-sm p-0";
+  const extra = document.createElement("li");
+  extra.className = "mt-4";
+  extra.innerHTML = `<a href="#/charts">⚡ charts</a>`;
+  root.appendChild(extra);
+  if (META.status) {
+    // public statuspage — plain page outside the SPA router
+    const st = document.createElement("li");
+    st.innerHTML = `<a href="/status">✓ status</a>`;
+    root.appendChild(st);
+  }
+  el.appendChild(root);
 }
 
 function markActive(path) {
-  for (const a of document.querySelectorAll(".tree .leaf a"))
+  for (const a of document.querySelectorAll("#tree a[data-path]"))
     a.classList.toggle("active", a.dataset.path === path);
 }
 
@@ -442,9 +464,9 @@ function legendHtml() {
   const colors = themeColors();
   const chips = LOSS_BUCKETS.map(
     ([, label], i) =>
-      `<span><span class="chip" style="background:${colors.loss[i]}"></span>loss ${label}</span>`
+      `<span><span class="${CHIP}" style="background:${colors.loss[i]}"></span>loss ${label}</span>`
   ).join("");
-  return `<div class="legend"><span>median ─ colored by loss</span>${chips}<span><span class="chip" style="background:${colors.smoke}"></span>smoke = round distribution</span></div>`;
+  return `<div class="${LEGEND}"><span>median ─ colored by loss</span>${chips}<span><span class="${CHIP}" style="background:${colors.smoke}"></span>smoke = round distribution</span></div>`;
 }
 
 function viewDetail(path) {
@@ -452,24 +474,24 @@ function viewDetail(path) {
   const node = findNode(path);
   const view = document.getElementById("view");
   const title = node ? (node.title || nodeLabel(node)) : path;
-  const host = node?.host ? `<b>${node.host}</b> · ` : "";
+  const host = node?.host ? `<b class="${ACCENT_B}">${node.host}</b> · ` : "";
   const agents = node?.agents || [];
   const agentAttr = agents.length ? ` data-agents="${agents.join(",")}"` : "";
   const agentLegend = agents.length
-    ? `<div class="legend"><span>agents:</span>${agents
-        .map((a, i) => `<span><span class="chip" style="background:${agentColor(i)}"></span>${a}</span>`)
+    ? `<div class="${LEGEND}"><span>agents:</span>${agents
+        .map((a, i) => `<span><span class="${CHIP}" style="background:${agentColor(i)}"></span>${a}</span>`)
         .join("")}</div>`
     : "";
   view.innerHTML = `
-    <div class="view-head">
-      <h1>${title}</h1>
-      <div class="sub">${host}${path} · ${META.pings} pings every ${META.step}s</div>
+    <div class="${HEAD}">
+      <h1 class="${H1}">${title}</h1>
+      <div class="${SUB}">${host}${path} · ${META.pings} pings every ${META.step}s</div>
     </div>
     ${legendHtml()}${agentLegend}
     ${RANGES.map(([r, label]) => `
-      <div class="card">
-        <h3>${label}</h3>
-        <div class="graphwrap"><canvas class="graph" data-path="${path}" data-range="${r}"${agentAttr}></canvas></div>
+      <div class="${CARD}">
+        <h3 class="${CARD_H3}">${label}</h3>
+        <div class="relative"><canvas class="graph" data-path="${path}" data-range="${r}"${agentAttr}></canvas></div>
       </div>`).join("")}`;
   for (const c of view.querySelectorAll("canvas")) {
     charts.add(c);
@@ -481,20 +503,20 @@ function viewDetail(path) {
 async function viewCharts() {
   markActive(null);
   const view = document.getElementById("view");
-  view.innerHTML = `<div class="view-head"><h1>charts</h1>
-    <div class="sub">ranked by the latest round</div></div><div id="charts-lists"></div>`;
+  view.innerHTML = `<div class="${HEAD}"><h1 class="${H1}">charts</h1>
+    <div class="${SUB}">ranked by the latest round</div></div><div id="charts-lists"></div>`;
   const lists = document.getElementById("charts-lists");
   for (const [by, title] of [["median", "Slowest (median RTT)"], ["loss", "Lossiest"]]) {
     const entries = await fetch(`/api/charts/top?by=${by}&n=8`).then((r) => r.json()).catch(() => []);
     const sec = document.createElement("div");
-    sec.innerHTML = `<div class="view-head" style="margin-top:1rem"><h1 style="font-size:15px">${title}</h1></div>
-      <div class="grid">${entries
+    sec.innerHTML = `<div class="${HEAD} mt-4"><h1 class="m-0 text-[15px] font-bold tracking-wider">${title}</h1></div>
+      <div class="${GRID}">${entries
         .map(
           (e) => `
-        <div class="card">
-          <a class="tname" href="#/t/${e.path}">${e.path}</a>
-          <div class="thost">${e.host} · ${fmtMs(e.median)} · loss ${e.loss.toFixed(1)}%</div>
-          <div class="graphwrap"><canvas class="graph mini" data-path="${e.path}" data-range="3h"></canvas></div>
+        <div class="${GRID_CARD}">
+          <a class="font-bold" href="#/t/${e.path}">${e.path}</a>
+          <div class="text-[11px] text-base-content/55 mt-0.5 mb-2">${e.host} · ${fmtMs(e.median)} · loss ${e.loss.toFixed(1)}%</div>
+          <div class="relative"><canvas class="graph mini" data-path="${e.path}" data-range="3h"></canvas></div>
         </div>`
         )
         .join("")}</div>`;
@@ -511,20 +533,20 @@ async function viewCompare(path) {
   markActive(null);
   const node = findNode(path);
   const view = document.getElementById("view");
-  if (!node) { view.innerHTML = `<div class="view-head"><h1>not found</h1></div>`; return; }
+  if (!node) { view.innerHTML = `<div class="${HEAD}"><h1 class="${H1}">not found</h1></div>`; return; }
   const leaves = leavesUnder(node).slice(0, AGENT_COLORS.length);
   const legend = leaves
-    .map((l, i) => `<span><span class="chip" style="background:${agentColor(i)}"></span>${nodeLabel(l)}</span>`)
+    .map((l, i) => `<span><span class="${CHIP}" style="background:${agentColor(i)}"></span>${nodeLabel(l)}</span>`)
     .join("");
   view.innerHTML = `
-    <div class="view-head">
-      <h1>${node.title || nodeLabel(node)} — compare</h1>
-      <div class="sub"><a href="#/s/${path}">back to overview</a></div>
+    <div class="${HEAD}">
+      <h1 class="${H1}">${node.title || nodeLabel(node)} — compare</h1>
+      <div class="${SUB}"><a href="#/s/${path}">back to overview</a></div>
     </div>
-    <div class="legend"><span>median lines:</span>${legend}</div>
+    <div class="${LEGEND}"><span>median lines:</span>${legend}</div>
     ${RANGES.slice(0, 2).map(([r, label]) => `
-      <div class="card"><h3>${label}</h3>
-      <div class="graphwrap"><canvas class="graph" id="cmp-${r}"></canvas></div></div>`).join("")}`;
+      <div class="${CARD}"><h3 class="${CARD_H3}">${label}</h3>
+      <div class="relative"><canvas class="graph" id="cmp-${r}"></canvas></div></div>`).join("")}`;
   for (const [r] of RANGES.slice(0, 2)) {
     const canvas = document.getElementById(`cmp-${r}`);
     const points = Math.min(400, Math.max(50, Math.floor(canvas.clientWidth / 2)));
@@ -569,20 +591,20 @@ function viewSection(path) {
   markActive(null);
   const node = findNode(path);
   const view = document.getElementById("view");
-  if (!node) { view.innerHTML = `<div class="view-head"><h1>not found</h1></div>`; return; }
+  if (!node) { view.innerHTML = `<div class="${HEAD}"><h1 class="${H1}">not found</h1></div>`; return; }
   const leaves = leavesUnder(node);
   view.innerHTML = `
-    <div class="view-head">
-      <h1>${node.title || nodeLabel(node)}</h1>
-      <div class="sub">${leaves.length} targets · last 3 hours · <a href="#/cmp/${path}">compare</a></div>
+    <div class="${HEAD}">
+      <h1 class="${H1}">${node.title || nodeLabel(node)}</h1>
+      <div class="${SUB}">${leaves.length} targets · last 3 hours · <a href="#/cmp/${path}">compare</a></div>
     </div>
     ${legendHtml()}
-    <div class="grid">
+    <div class="${GRID}">
       ${leaves.map((l) => `
-        <div class="card">
-          <a class="tname" href="#/t/${l.path}">${nodeLabel(l)}</a>
-          <div class="thost">${l.host}</div>
-          <div class="graphwrap"><canvas class="graph mini" data-path="${l.path}" data-range="3h"></canvas></div>
+        <div class="${GRID_CARD}">
+          <a class="font-bold" href="#/t/${l.path}">${nodeLabel(l)}</a>
+          <div class="text-[11px] text-base-content/55 mt-0.5 mb-2">${l.host}</div>
+          <div class="relative"><canvas class="graph mini" data-path="${l.path}" data-range="3h"></canvas></div>
         </div>`).join("")}
     </div>`;
   for (const c of view.querySelectorAll("canvas")) {
@@ -663,7 +685,7 @@ window.addEventListener("resize", (() => {
     TREE = tree;
   } catch {
     document.getElementById("view").innerHTML =
-      `<div class="view-head"><h1>api unreachable</h1></div>`;
+      `<div class="${HEAD}"><h1 class="${H1}">api unreachable</h1></div>`;
     return;
   }
   renderTree();

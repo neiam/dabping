@@ -71,7 +71,9 @@ spec:
             - name: config
               mountPath: /etc/dabping
               readOnly: true
-          # /metrics always 200s when the server is up.
+          # /metrics 200s only when the config enables the prometheus
+          # emitter ([emitters.prom] type = "prometheus") — without it the
+          # route 404s and these probes fail.
           readinessProbe:
             httpGet: { path: /metrics, port: 8420 }
             initialDelaySeconds: 5

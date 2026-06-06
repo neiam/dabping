@@ -1,0 +1,68 @@
+/* dabping UI input stylesheet — compiled with Tailwind + daisyUI
+   (setup ported from DMS) to src/web/assets/app.css via `just assets`. */
+
+@import "@fontsource/b612-mono/400.css";
+@import "@fontsource/b612-mono/700.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body { height: 100%; }
+  body { @apply font-mono text-sm bg-base-100 text-base-content; }
+  a { @apply text-base-content no-underline hover:text-accent; }
+}
+
+/* ---- bits the markup can't express as utilities: JS-toggled states,
+   theme-scoped swatches, canvas sizing, and server-supplied state classes
+   on the status page. Everything else is daisyUI components/utilities. ---- */
+
+/* live feed dot (app.js toggles .on) */
+.live-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: oklch(var(--bc) / 0.3); vertical-align: 1px; margin-right: 6px;
+}
+.live-dot.on { background: oklch(var(--su)); }
+
+/* fa-fw-style fixed-width inline icons */
+.icon {
+  width: 1em; height: 1em; display: inline-block; fill: currentColor;
+  min-width: 1.25em; vertical-align: -0.125em;
+}
+
+/* per-theme primary-color swatch: data-theme on the span scopes the vars */
+.swatch {
+  width: 0.75rem; height: 0.75rem; border-radius: 50%; flex: none;
+  border: 1px solid oklch(var(--bc) / 0.2);
+  background: oklch(var(--p));
+}
+
+/* ---- graphs ---- */
+canvas.graph { display: block; width: 100%; height: 220px; }
+canvas.graph.mini { height: 130px; }
+
+/* ---- tooltip (positioned by app.js) ---- */
+#tooltip {
+  position: fixed; pointer-events: none; z-index: 50; display: none;
+  background: oklch(var(--b3)); border: 1px solid oklch(var(--n));
+  border-radius: 0.4rem; padding: 0.45rem 0.6rem; font-size: 11px; line-height: 1.6;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.35);
+}
+#tooltip b { color: oklch(var(--a)); font-weight: 400; }
+
+/* ---- status page: classes arrive from the server as state values
+   (banner indicator, component status, per-bar cls), so they can't be
+   purge-scanned from the template — keep them here, always emitted. ---- */
+.banner.none { background: oklch(var(--su)); }
+.banner.minor { background: oklch(var(--wa)); }
+.banner.major { background: oklch(75% 0.17 55); }
+.banner.critical { background: oklch(var(--er)); }
+.comp-state.operational { color: oklch(var(--su)); }
+.comp-state.degraded_performance { color: oklch(var(--wa)); }
+.comp-state.partial_outage { color: oklch(75% 0.17 55); }
+.comp-state.major_outage { color: oklch(var(--er)); }
+.bars span { flex: 1 1 0%; height: 26px; border-radius: 2px; background: oklch(var(--bc) / 0.12); }
+.bars .ok   { background: oklch(var(--su)); }
+.bars .warn { background: oklch(var(--wa)); }
+.bars .bad  { background: oklch(var(--er)); }

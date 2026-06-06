@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@fontsource/b612-mono": "^5.2.6",
+    "@tailwindcss/forms": "^0.5.10",
+    "daisyui": "^4.12.24",
+    "tailwindcss": "^3.4.17"
+  }
+}

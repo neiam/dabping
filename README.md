@@ -215,8 +215,10 @@ Key decisions and why:
 - **Enum dispatch for probes/emitters** — closed in-crate sets; no
   async-trait boxing. Add a probe = new variant + config struct + one match
   arm in `probe/mod.rs` + validation-by-construction in `from_config`.
-- **minijinja for templates** (house standard), DMS OKLCH themes verbatim in
-  `app.css` (source tokens in `design/dms-themes.css`).
+- **minijinja for templates** (house standard); frontend toolchain ported
+  from DMS — Tailwind + daisyUI with the DMS theme definitions in
+  `assets/tailwind.config.js`, compiled to `src/web/assets/app.css`
+  (committed, since rust-embed bakes it in at cargo build time).
 - **Same binary for master/agent**; slimming via cargo features is a noted
   option in PLAN.md but not done.
 - **JSONL for incidents** — append-only, crash-safe, replayed at startup.
@@ -230,7 +232,12 @@ RUST_LOG=dabping=debug dabping run           # request-level logging
 ```
 
 - Debug builds serve `src/web/assets/` **live from disk** (rust-embed);
-  release builds embed them. Edit JS/CSS, refresh, no rebuild.
+  release builds embed them. Edit JS, refresh, no rebuild.
+- CSS is compiled with Tailwind/daisyUI (setup ported from DMS):
+  `just deps` once, then `just assets` (one-shot) or `just watch` during UI
+  work — input is `assets/css/style.css`, markup uses daisyUI components;
+  the compiled `src/web/assets/app.css` is committed. The Dockerfile
+  rebuilds it in a node stage.
 - **Headless UI verification on this machine**: chromium headless is broken
   (loads nothing, any flags); use
   `firefox --no-remote --headless --profile $(mktemp -d) --screenshot out.png

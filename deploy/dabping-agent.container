@@ -13,12 +13,13 @@ After=network-online.target
 Wants=network-online.target
 
 [Container]
-Image=ghcr.io/gmorell/dabping:latest
+Image=ghcr.io/neiam/dabping:latest
 Exec=agent --master https://dab.example.org --name CHANGEME
 EnvironmentFile=/etc/dabping/agent.env
 # ICMP via unprivileged ping sockets (the image runs non-root, no file caps);
-# rootless podman: keep the range within the mapped gids
-Sysctl=net.ipv4.ping_group_range=0 65535
+# rootless podman: keep the range within the mapped gids.
+# Quoted: Sysctl= word-splits on spaces, and this value contains one.
+Sysctl="net.ipv4.ping_group_range=0 65535"
 NoNewPrivileges=true
 
 [Service]

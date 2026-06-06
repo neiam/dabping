@@ -233,12 +233,40 @@ function drawSmoke(canvas, fetched, opts = {}) {
     return;
   }
 
+  // smoke: stacked translucent quantile bands
+  smokeBands(ctx, pts, period, X, Y, colors.smoke);
+
+  // median line, segment-colored by loss
+  ctx.lineWidth = mini ? 1.5 : 2;
+  let prev = null;
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    const med = Number.isFinite(p.median) ? p.median * 1000 : null;
+    const x = X(p.ts + period / 2);
+    if (med != null && prev) {
+      ctx.strokeStyle = lossColor(colors, p.loss);
+      ctx.beginPath();
+      ctx.moveTo(prev.x, Y(prev.med));
+      ctx.lineTo(x, Y(med));
+      ctx.stroke();
+    } else if (med != null && (i + 1 >= pts.length || !Number.isFinite(pts[i + 1].median))) {
+      // isolated point — make it visible
+      ctx.fillStyle = lossColor(colors, p.loss);
+      ctx.fillRect(x - 1.5, Y(med) - 1.5, 3, 3);
+    }
+    prev = med != null ? { x, med } : null;
+  }
+
+  canvas._chart = { pts, period, x0, span, X, Y, M, W, H };
+}
+
+// stacked translucent quantile bands between v[k] and v[len-1-k]; shared
+// by the master smoke and the per-agent overlays (tinted via fill)
+function smokeBands(ctx, pts, period, X, Y, fill) {
   // per-point sorted valid pings (ms)
   const valid = pts.map((p) => p.pings.filter((v) => Number.isFinite(v)).map((v) => v * 1000));
   const maxValid = Math.max(0, ...valid.map((v) => v.length));
-
-  // smoke: stacked translucent quantile bands between v[k] and v[len-1-k]
-  ctx.fillStyle = colors.smoke;
+  ctx.fillStyle = fill;
   for (let k = 0; k < Math.floor(maxValid / 2) + 1; k++) {
     let run = [];
     const flush = () => {
@@ -265,40 +293,18 @@ function drawSmoke(canvas, fetched, opts = {}) {
     }
     flush();
   }
-
-  // median line, segment-colored by loss
-  ctx.lineWidth = mini ? 1.5 : 2;
-  let prev = null;
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[i];
-    const med = Number.isFinite(p.median) ? p.median * 1000 : null;
-    const x = X(p.ts + period / 2);
-    if (med != null && prev) {
-      ctx.strokeStyle = lossColor(colors, p.loss);
-      ctx.beginPath();
-      ctx.moveTo(prev.x, Y(prev.med));
-      ctx.lineTo(x, Y(med));
-      ctx.stroke();
-    } else if (med != null && (i + 1 >= pts.length || !Number.isFinite(pts[i + 1].median))) {
-      // isolated point — make it visible
-      ctx.fillStyle = lossColor(colors, p.loss);
-      ctx.fillRect(x - 1.5, Y(med) - 1.5, 3, 3);
-    }
-    prev = med != null ? { x, med } : null;
-  }
-
-  canvas._chart = { pts, period, x0, span, X, Y, M, W, H };
 }
 
-// distinguishable overlay colors for agent median lines
-const AGENT_COLORS = ["#60a5fa", "#f472b6", "#fbbf24", "#34d399", "#c084fc", "#22d3ee"];
+// distinguishable overlay colors for agent series (8 vantage regions)
+const AGENT_COLORS = ["#60a5fa", "#f472b6", "#fbbf24", "#34d399", "#c084fc", "#22d3ee", "#fb7185", "#a3e635"];
 
 function agentColor(i) {
   return AGENT_COLORS[i % AGENT_COLORS.length];
 }
 
-// median-only polyline for an agent's series, on the master graph's scale
-function drawAgentLine(canvas, fetched, color) {
+// an agent's series on the master graph's scale: tinted smoke bands plus a
+// solid median polyline; smoke:false (compare view) = dashed median only
+function drawAgentSeries(canvas, fetched, color, opts = {}) {
   const ch = canvas._chart;
   if (!ch) return;
   const ctx = canvas.getContext("2d");
@@ -307,9 +313,15 @@ function drawAgentLine(canvas, fetched, color) {
   // absolute transform: drawSmoke leaves the context dpr-scaled, so a
   // relative scale() here would double it on hidpi and draw off-canvas
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // agent values can exceed the master's linear scale — keep the spill
+  // inside the plot area instead of painting over labels
+  ctx.beginPath();
+  ctx.rect(ch.M.l, ch.M.t, ch.W - ch.M.l - ch.M.r, ch.H - ch.M.t - ch.M.b);
+  ctx.clip();
+  if (opts.smoke) smokeBands(ctx, fetched.points || [], fetched.period, ch.X, ch.Y, color + "1a");
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.2;
-  ctx.setLineDash([4, 3]);
+  if (!opts.smoke) ctx.setLineDash([4, 3]);
   let prev = null;
   for (const p of fetched.points) {
     const med = Number.isFinite(p.median) ? p.median * 1000 : null;
@@ -365,7 +377,7 @@ async function loadGraph(canvas) {
       } catch { return null; /* agent series may not exist yet */ }
     }))).filter(Boolean);
     drawSmoke(canvas, fetched, { mini: canvas.classList.contains("mini"), agents: canvas._agents });
-    for (const a of canvas._agents) drawAgentLine(canvas, a.fetched, a.color);
+    for (const a of canvas._agents) drawAgentSeries(canvas, a.fetched, a.color, { smoke: true });
   } catch {
     drawEmpty(canvas.parentElement, "fetch failed");
   }
@@ -385,7 +397,7 @@ function redrawAll() {
     if (!c.isConnected) { charts.delete(c); continue; }
     if (c._fetched) {
       drawSmoke(c, c._fetched, { mini: c.classList.contains("mini"), agents: c._agents || [] });
-      for (const a of c._agents || []) drawAgentLine(c, a.fetched, a.color);
+      for (const a of c._agents || []) drawAgentSeries(c, a.fetched, a.color, { smoke: true });
     }
   }
 }
@@ -630,7 +642,7 @@ async function viewCompare(path) {
 }
 
 function drawCompare(canvas, leaves, series) {
-  // scale axes over every series, then reuse the agent-line renderer
+  // scale axes over every series, then reuse the agent-series renderer
   let top = 0;
   let x0 = Infinity, x1 = 0, period = 60;
   for (const f of series) {
@@ -652,7 +664,7 @@ function drawCompare(canvas, leaves, series) {
     { axesOnly: true, agents: series.filter(Boolean).map((f) => ({ fetched: f })) }
   );
   for (const [i, f] of series.entries()) {
-    if (f) drawAgentLine(canvas, f, agentColor(i));
+    if (f) drawAgentSeries(canvas, f, agentColor(i)); // medians only, dashed
   }
 }
 

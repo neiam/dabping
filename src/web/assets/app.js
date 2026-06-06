@@ -518,6 +518,7 @@ function route() {
   const h = decodeURIComponent(location.hash.slice(1));
   charts.clear();
   if (h.startsWith("/t/")) return viewDetail(h.slice(3));
+  if (h.startsWith("/z/")) return viewZen(h.slice(3));
   if (h.startsWith("/s/")) return viewSection(h.slice(3));
   if (h.startsWith("/cmp/")) return viewCompare(h.slice(5));
   if (h === "/charts") return viewCharts();
@@ -538,6 +539,33 @@ function legendHtml() {
   return `<div class="${LEGEND}"><span>median ─ colored by loss</span>${chips}<span><span class="${CHIP}" style="background:${colors.smoke}"></span>smoke = round distribution</span></div>`;
 }
 
+// chips double as toggles: dimmed = overlay hidden (persisted)
+function agentLegendHtml(agents) {
+  if (!agents.length) return "";
+  return `<div class="${LEGEND}"><span>agents (click to toggle):</span>${agents
+    .map((a, i) => `<button data-agent="${a}" class="flex items-center cursor-pointer hover:text-accent${
+      hiddenAgents.has(a) ? " opacity-40 line-through" : ""
+    }"><span class="${CHIP}" style="background:${agentColor(i)}"></span>${a}</button>`)
+    .join("")}</div>`;
+}
+
+// rerender: chips restyle, graphs reload sans/avec overlay
+function wireAgentToggles(rerender) {
+  for (const btn of document.querySelectorAll("#view button[data-agent]")) {
+    btn.onclick = () => {
+      const a = btn.dataset.agent;
+      hiddenAgents.has(a) ? hiddenAgents.delete(a) : hiddenAgents.add(a);
+      localStorage.setItem("dabping:agents-off", JSON.stringify([...hiddenAgents]));
+      rerender();
+    };
+  }
+}
+
+// small corner affordance on every graph card → zen view
+function zenLink(r, path) {
+  return `<a href="#/z/${r}/${path}" title="expand" class="opacity-60 hover:opacity-100 hover:text-accent">⤢</a>`;
+}
+
 function viewDetail(path) {
   markActive(path);
   const node = findNode(path);
@@ -546,37 +574,59 @@ function viewDetail(path) {
   const host = node?.host ? `<b class="${ACCENT_B}">${node.host}</b> · ` : "";
   const agents = node?.agents || [];
   const agentAttr = agents.length ? ` data-agents="${agents.join(",")}"` : "";
-  // chips double as toggles: dimmed = overlay hidden (persisted)
-  const agentLegend = agents.length
-    ? `<div class="${LEGEND}"><span>agents (click to toggle):</span>${agents
-        .map((a, i) => `<button data-agent="${a}" class="flex items-center cursor-pointer hover:text-accent${
-          hiddenAgents.has(a) ? " opacity-40 line-through" : ""
-        }"><span class="${CHIP}" style="background:${agentColor(i)}"></span>${a}</button>`)
-        .join("")}</div>`
-    : "";
   view.innerHTML = `
     <div class="${HEAD}">
       <h1 class="${H1}">${title}</h1>
       <div class="${SUB}">${host}${path} · ${META.pings} pings every ${META.step}s</div>
     </div>
-    ${legendHtml()}${agentLegend}
+    ${legendHtml()}${agentLegendHtml(agents)}
     ${RANGES.map(([r, label]) => `
       <div class="${CARD}">
-        <h3 class="${CARD_H3}">${label}</h3>
+        <h3 class="${CARD_H3} flex justify-between items-center">${label}${zenLink(r, path)}</h3>
         <div class="relative"><canvas class="graph" data-path="${path}" data-range="${r}"${agentAttr}></canvas></div>
       </div>`).join("")}`;
-  for (const btn of view.querySelectorAll("button[data-agent]")) {
-    btn.onclick = () => {
-      const a = btn.dataset.agent;
-      hiddenAgents.has(a) ? hiddenAgents.delete(a) : hiddenAgents.add(a);
-      localStorage.setItem("dabping:agents-off", JSON.stringify([...hiddenAgents]));
-      viewDetail(path); // re-render: chips restyle, graphs reload sans/avec overlay
-    };
-  }
+  wireAgentToggles(() => viewDetail(path));
   for (const c of view.querySelectorAll("canvas")) {
     charts.add(c);
     loadGraph(c);
   }
+}
+
+/// Zen view: one chart, full viewport height. ‹/› (or ←/→) step through
+/// the tree's leaves, the range buttons (or ↑/↓) switch windows, esc backs
+/// out to the detail page.
+function viewZen(spec) {
+  const [range, ...rest] = spec.split("/");
+  const path = rest.join("/");
+  markActive(path);
+  const node = findNode(path);
+  const view = document.getElementById("view");
+  if (!node?.host) { view.innerHTML = `<div class="${HEAD}"><h1 class="${H1}">not found</h1></div>`; return; }
+  const leaves = TREE.flatMap((n) => leavesUnder(n));
+  const i = leaves.findIndex((l) => l.path === path);
+  const prev = leaves[(i - 1 + leaves.length) % leaves.length];
+  const next = leaves[(i + 1) % leaves.length];
+  const agents = node.agents || [];
+  const agentAttr = agents.length ? ` data-agents="${agents.join(",")}"` : "";
+  view.innerHTML = `
+    <div class="${HEAD} flex items-end justify-between flex-wrap gap-2">
+      <div>
+        <h1 class="${H1}">${node.title || nodeLabel(node)}</h1>
+        <div class="${SUB}"><b class="${ACCENT_B}">${node.host}</b> · ${path}</div>
+      </div>
+      <div class="flex items-center gap-1">
+        <a class="btn btn-ghost btn-sm" href="#/z/${range}/${prev.path}" title="previous target (←)">‹</a>
+        <a class="btn btn-ghost btn-sm" href="#/z/${range}/${next.path}" title="next target (→)">›</a>
+        ${RANGES.map(([r]) => `<a class="btn btn-ghost btn-sm${r === range ? " btn-active" : ""}" href="#/z/${r}/${path}" title="↑/↓ to cycle">${r}</a>`).join("")}
+        <a class="btn btn-ghost btn-sm" href="#/t/${path}" title="back to detail (esc)">✕</a>
+      </div>
+    </div>
+    ${legendHtml()}${agentLegendHtml(agents)}
+    <div class="relative"><canvas class="graph tall" data-path="${path}" data-range="${range}"${agentAttr}></canvas></div>`;
+  wireAgentToggles(() => viewZen(spec));
+  const c = view.querySelector("canvas");
+  charts.add(c);
+  loadGraph(c);
 }
 
 /// SmokePing charts mode: top targets by median / loss.
@@ -594,7 +644,7 @@ async function viewCharts() {
         .map(
           (e) => `
         <div class="${GRID_CARD}">
-          <a class="font-bold" href="#/t/${e.path}">${e.path}</a>
+          <div class="flex justify-between items-center"><a class="font-bold" href="#/t/${e.path}">${e.path}</a>${zenLink("3h", e.path)}</div>
           <div class="text-[11px] text-base-content/55 mt-0.5 mb-2">${e.host} · ${fmtMs(e.median)} · loss ${e.loss.toFixed(1)}%</div>
           <div class="relative"><canvas class="graph mini" data-path="${e.path}" data-range="3h"></canvas></div>
         </div>`
@@ -683,7 +733,7 @@ function viewSection(path) {
     <div class="${GRID}">
       ${leaves.map((l) => `
         <div class="${GRID_CARD}">
-          <a class="font-bold" href="#/t/${l.path}">${nodeLabel(l)}</a>
+          <div class="flex justify-between items-center"><a class="font-bold" href="#/t/${l.path}">${nodeLabel(l)}</a>${zenLink("3h", l.path)}</div>
           <div class="text-[11px] text-base-content/55 mt-0.5 mb-2">${l.host}</div>
           <div class="relative"><canvas class="graph mini" data-path="${l.path}" data-range="3h"></canvas></div>
         </div>`).join("")}
@@ -748,6 +798,24 @@ function connectLive() {
 /* ---------- boot ---------- */
 
 window.addEventListener("hashchange", route);
+// zen-view keyboard nav: ←/→ targets, ↑/↓ ranges, esc back to detail
+document.addEventListener("keydown", (e) => {
+  const h = decodeURIComponent(location.hash.slice(1));
+  if (!h.startsWith("/z/") || e.ctrlKey || e.metaKey || e.altKey) return;
+  const [range, ...rest] = h.slice(3).split("/");
+  const path = rest.join("/");
+  const leaves = TREE.flatMap((n) => leavesUnder(n));
+  const i = leaves.findIndex((l) => l.path === path);
+  if (i < 0) return;
+  const go = (hash) => { e.preventDefault(); location.hash = hash; };
+  if (e.key === "ArrowLeft") go(`#/z/${range}/${leaves[(i - 1 + leaves.length) % leaves.length].path}`);
+  else if (e.key === "ArrowRight") go(`#/z/${range}/${leaves[(i + 1) % leaves.length].path}`);
+  else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+    const ri = RANGES.findIndex(([r]) => r === range);
+    const d = e.key === "ArrowDown" ? 1 : -1;
+    go(`#/z/${RANGES[(ri + d + RANGES.length) % RANGES.length][0]}/${path}`);
+  } else if (e.key === "Escape") go(`#/t/${path}`);
+});
 window.addEventListener("resize", (() => {
   let t;
   return () => { clearTimeout(t); t = setTimeout(redrawAll, 150); };

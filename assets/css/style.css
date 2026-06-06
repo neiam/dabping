@@ -41,6 +41,8 @@
 /* ---- graphs ---- */
 canvas.graph { display: block; width: 100%; height: 220px; }
 canvas.graph.mini { height: 130px; }
+/* zen view: one chart filling the viewport below navbar + head + legends */
+canvas.graph.tall { height: calc(100vh - 245px); min-height: 320px; }
 
 /* ---- tooltip (positioned by app.js) ---- */
 #tooltip {

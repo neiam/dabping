@@ -34,6 +34,9 @@ let META = { step: 300, pings: 20 };
 // agent overlays the user has hidden (clickable legend chips); shared
 // across targets and persisted
 const hiddenAgents = new Set(JSON.parse(localStorage.getItem("dabping:agents-off") || "[]"));
+// y-axis scale: "linear" (master-smoke scaled, overlays may clip) or "log"
+// (also fits the agent overlays' medians); navbar button toggles it
+let YSCALE = localStorage.getItem("dabping:yscale") === "log" ? "log" : "linear";
 // every canvas currently in the DOM, with what it shows
 const charts = new Set();
 const refreshTimers = new Map();
@@ -74,6 +77,22 @@ function initThemePicker() {
   document.addEventListener("click", (e) => {
     if (!dd.contains(e.target)) dd.open = false;
   });
+}
+
+/* ---------- y-scale toggle ---------- */
+
+function initYScale() {
+  const btn = document.getElementById("yscale-btn");
+  const paint = () => { btn.textContent = YSCALE === "log" ? "log" : "lin"; };
+  paint();
+  btn.onclick = () => {
+    YSCALE = YSCALE === "log" ? "linear" : "log";
+    localStorage.setItem("dabping:yscale", YSCALE);
+    paint();
+    redrawAll();
+    // compare canvases aren't in the charts set; rebuild that view instead
+    if (location.hash.startsWith("#/cmp/")) route();
+  };
 }
 
 /* ---------- colors ---------- */
@@ -150,23 +169,48 @@ function drawSmoke(canvas, fetched, opts = {}) {
   const x0 = pts[0].ts, x1 = pts[pts.length - 1].ts + period;
   const span = x1 - x0;
 
-  // y scale from the widest smoke
-  let top = 0;
+  // y scale from the widest smoke; log mode also makes room for the agent
+  // overlays, whose medians can sit far above the master's smoke
+  const log = YSCALE === "log";
+  let top = 0, lopos = Infinity;
+  const see = (ms) => { top = Math.max(top, ms); if (ms > 0) lopos = Math.min(lopos, ms); };
   for (const p of pts)
-    for (const v of p.pings) if (Number.isFinite(v)) top = Math.max(top, v * 1000);
+    for (const v of p.pings) if (Number.isFinite(v)) see(v * 1000);
+  if (log)
+    for (const s of opts.agents || [])
+      for (const p of s.fetched.points || [])
+        if (Number.isFinite(p.median)) see(p.median * 1000);
   const ymax = niceCeil(top * 1.05);
 
   const X = (t) => M.l + ((t - x0) / span) * (W - M.l - M.r);
-  const Y = (ms) => M.t + (1 - ms / ymax) * (H - M.t - M.b);
+  let Y, ticks;
+  if (log) {
+    if (!Number.isFinite(lopos)) lopos = ymax / 100;
+    // bottom of the axis: smallest value floored to a power of 10, but at
+    // least one decade below the top so the scale never degenerates
+    const lo = Math.pow(10, Math.min(Math.floor(Math.log10(lopos)), Math.ceil(Math.log10(ymax)) - 1));
+    const lgLo = Math.log10(lo), lgHi = Math.log10(ymax);
+    Y = (ms) => M.t + (1 - (Math.log10(Math.max(ms, lo)) - lgLo) / (lgHi - lgLo)) * (H - M.t - M.b);
+    // decade gridlines, with 2×/5× subdivisions when the span is short
+    const mults = lgHi - lgLo > (mini ? 2 : 3) ? [1] : mini ? [1, 5] : [1, 2, 5];
+    ticks = [];
+    for (let d = Math.floor(lgLo); d <= Math.ceil(lgHi); d++)
+      for (const m of mults) {
+        const v = m * Math.pow(10, d);
+        if (v >= lo * 0.999 && v <= ymax * 1.001) ticks.push(v);
+      }
+  } else {
+    Y = (ms) => M.t + (1 - ms / ymax) * (H - M.t - M.b);
+    const yticks = mini ? 2 : 4;
+    ticks = Array.from({ length: yticks + 1 }, (_, i) => (ymax / yticks) * i);
+  }
 
   // grid + y labels
   ctx.font = `10px "B612 Mono", monospace`;
   ctx.fillStyle = colors.faint;
   ctx.strokeStyle = colors.grid;
   ctx.lineWidth = 1;
-  const yticks = mini ? 2 : 4;
-  for (let i = 0; i <= yticks; i++) {
-    const ms = (ymax / yticks) * i;
+  for (const ms of ticks) {
     const y = Y(ms);
     ctx.beginPath();
     ctx.moveTo(M.l, y);
@@ -308,23 +352,20 @@ async function loadGraph(canvas) {
     canvas.parentElement.querySelector(".empty-note")?.remove();
     const fetched = await r.json();
     canvas._fetched = fetched;
-    drawSmoke(canvas, fetched, { mini: canvas.classList.contains("mini") });
-    // overlay per-agent median lines (series live under "path@agent");
-    // colors index the full agent list so they stay stable when some are
-    // toggled off, and fetches are kept for redrawAll (theme/resize)
+    // per-agent median lines (series live under "path@agent") are fetched
+    // BEFORE the smoke draws: log mode scales the y-axis to fit them.
+    // Colors index the full agent list so they stay stable when some are
+    // toggled off, and fetches are kept for redrawAll (theme/resize).
     const agents = (canvas.dataset.agents || "").split(",").filter(Boolean);
-    canvas._agents = [];
-    for (const [i, a] of agents.entries()) {
-      if (hiddenAgents.has(a)) continue;
+    canvas._agents = (await Promise.all(agents.map(async (a, i) => {
+      if (hiddenAgents.has(a)) return null;
       try {
         const ar = await fetch(`/api/data/${path}@${a}?${win}&points=${points}`);
-        if (ar.ok) {
-          const af = await ar.json();
-          canvas._agents.push({ fetched: af, color: agentColor(i) });
-          drawAgentLine(canvas, af, agentColor(i));
-        }
-      } catch { /* agent series may not exist yet */ }
-    }
+        return ar.ok ? { fetched: await ar.json(), color: agentColor(i) } : null;
+      } catch { return null; /* agent series may not exist yet */ }
+    }))).filter(Boolean);
+    drawSmoke(canvas, fetched, { mini: canvas.classList.contains("mini"), agents: canvas._agents });
+    for (const a of canvas._agents) drawAgentLine(canvas, a.fetched, a.color);
   } catch {
     drawEmpty(canvas.parentElement, "fetch failed");
   }
@@ -343,7 +384,7 @@ function redrawAll() {
   for (const c of [...charts]) {
     if (!c.isConnected) { charts.delete(c); continue; }
     if (c._fetched) {
-      drawSmoke(c, c._fetched, { mini: c.classList.contains("mini") });
+      drawSmoke(c, c._fetched, { mini: c.classList.contains("mini"), agents: c._agents || [] });
       for (const a of c._agents || []) drawAgentLine(c, a.fetched, a.color);
     }
   }
@@ -603,11 +644,12 @@ function drawCompare(canvas, leaves, series) {
     drawEmpty(canvas.parentElement, "no data yet");
     return;
   }
-  // axes from the combined bounds, then one overlay line per target
+  // axes from the combined bounds, then one overlay line per target;
+  // the series ride along so log mode can derive a sane bottom decade
   drawSmoke(
     canvas,
     { period: x1 - x0, points: [{ ts: x0, loss: NaN, median: NaN, pings: [top / 1000] }] },
-    { axesOnly: true }
+    { axesOnly: true, agents: series.filter(Boolean).map((f) => ({ fetched: f })) }
   );
   for (const [i, f] of series.entries()) {
     if (f) drawAgentLine(canvas, f, agentColor(i));
@@ -701,6 +743,7 @@ window.addEventListener("resize", (() => {
 
 (async function boot() {
   initThemePicker();
+  initYScale();
   initTooltip();
   initZoom();
   try {

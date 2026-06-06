@@ -31,6 +31,9 @@ const CHIP = "inline-block w-3.5 h-1 rounded-sm align-[2px] mr-1";
 
 let TREE = [];
 let META = { step: 300, pings: 20 };
+// agent overlays the user has hidden (clickable legend chips); shared
+// across targets and persisted
+const hiddenAgents = new Set(JSON.parse(localStorage.getItem("dabping:agents-off") || "[]"));
 // every canvas currently in the DOM, with what it shows
 const charts = new Set();
 const refreshTimers = new Map();
@@ -257,7 +260,9 @@ function drawAgentLine(canvas, fetched, color) {
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
   ctx.save();
-  ctx.scale(dpr, dpr);
+  // absolute transform: drawSmoke leaves the context dpr-scaled, so a
+  // relative scale() here would double it on hidpi and draw off-canvas
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.2;
   ctx.setLineDash([4, 3]);
@@ -304,12 +309,20 @@ async function loadGraph(canvas) {
     const fetched = await r.json();
     canvas._fetched = fetched;
     drawSmoke(canvas, fetched, { mini: canvas.classList.contains("mini") });
-    // overlay per-agent median lines (series live under "path@agent")
+    // overlay per-agent median lines (series live under "path@agent");
+    // colors index the full agent list so they stay stable when some are
+    // toggled off, and fetches are kept for redrawAll (theme/resize)
     const agents = (canvas.dataset.agents || "").split(",").filter(Boolean);
+    canvas._agents = [];
     for (const [i, a] of agents.entries()) {
+      if (hiddenAgents.has(a)) continue;
       try {
-        const ar = await fetch(`/api/data/${path}@${a}?range=${range}&points=${points}`);
-        if (ar.ok) drawAgentLine(canvas, await ar.json(), agentColor(i));
+        const ar = await fetch(`/api/data/${path}@${a}?${win}&points=${points}`);
+        if (ar.ok) {
+          const af = await ar.json();
+          canvas._agents.push({ fetched: af, color: agentColor(i) });
+          drawAgentLine(canvas, af, agentColor(i));
+        }
       } catch { /* agent series may not exist yet */ }
     }
   } catch {
@@ -329,7 +342,10 @@ function scheduleRefresh(canvas, delay = 1200) {
 function redrawAll() {
   for (const c of [...charts]) {
     if (!c.isConnected) { charts.delete(c); continue; }
-    if (c._fetched) drawSmoke(c, c._fetched, { mini: c.classList.contains("mini") });
+    if (c._fetched) {
+      drawSmoke(c, c._fetched, { mini: c.classList.contains("mini") });
+      for (const a of c._agents || []) drawAgentLine(c, a.fetched, a.color);
+    }
   }
 }
 
@@ -477,9 +493,12 @@ function viewDetail(path) {
   const host = node?.host ? `<b class="${ACCENT_B}">${node.host}</b> · ` : "";
   const agents = node?.agents || [];
   const agentAttr = agents.length ? ` data-agents="${agents.join(",")}"` : "";
+  // chips double as toggles: dimmed = overlay hidden (persisted)
   const agentLegend = agents.length
-    ? `<div class="${LEGEND}"><span>agents:</span>${agents
-        .map((a, i) => `<span><span class="${CHIP}" style="background:${agentColor(i)}"></span>${a}</span>`)
+    ? `<div class="${LEGEND}"><span>agents (click to toggle):</span>${agents
+        .map((a, i) => `<button data-agent="${a}" class="flex items-center cursor-pointer hover:text-accent${
+          hiddenAgents.has(a) ? " opacity-40 line-through" : ""
+        }"><span class="${CHIP}" style="background:${agentColor(i)}"></span>${a}</button>`)
         .join("")}</div>`
     : "";
   view.innerHTML = `
@@ -493,6 +512,14 @@ function viewDetail(path) {
         <h3 class="${CARD_H3}">${label}</h3>
         <div class="relative"><canvas class="graph" data-path="${path}" data-range="${r}"${agentAttr}></canvas></div>
       </div>`).join("")}`;
+  for (const btn of view.querySelectorAll("button[data-agent]")) {
+    btn.onclick = () => {
+      const a = btn.dataset.agent;
+      hiddenAgents.has(a) ? hiddenAgents.delete(a) : hiddenAgents.add(a);
+      localStorage.setItem("dabping:agents-off", JSON.stringify([...hiddenAgents]));
+      viewDetail(path); // re-render: chips restyle, graphs reload sans/avec overlay
+    };
+  }
   for (const c of view.querySelectorAll("canvas")) {
     charts.add(c);
     loadGraph(c);

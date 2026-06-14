@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <link rel="icon" href="data:,"/>
+    <link rel="stylesheet" href="/app.css"/>
+    <title>about · dabping</title>
+    <script>
+      // theme: follow the system, same palette as the operator UI
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const apply = () => document.documentElement.setAttribute("data-theme", mq.matches ? "afterdark" : "her");
+      apply();
+      mq.addEventListener("change", apply);
+    </script>
+</head>
+<body>
+<header class="navbar bg-base-200 border-b border-base-300 sticky top-0 z-10 px-8 justify-between">
+    <a href="/" class="font-bold tracking-[0.16em] text-accent flex items-center gap-2">DABPING</a>
+    <div class="flex items-center gap-1">
+        <a href="/" class="btn btn-ghost btn-sm">Graphs</a>
+        <a href="/status" class="btn btn-ghost btn-sm">Status</a>
+    </div>
+</header>
+
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+  <section class="py-20 sm:py-28 text-center">
+    <p class="font-mono text-xs uppercase tracking-[0.25em] text-accent mb-4">DABPING</p>
+    <h1 class="text-4xl sm:text-6xl font-bold tracking-tight">
+      Watch the smoke. Catch the loss.
+    </h1>
+    <p class="text-base-content/70 text-lg sm:text-xl mt-6 max-w-2xl mx-auto leading-relaxed">
+      Network latency monitoring in a single static binary — a Rust
+      reimplementation of
+      <a href="https://oss.oetiker.ch/smokeping/" class="link">SmokePing</a>
+      crossed with <a href="https://github.com/20c/vaping" class="link">vaping</a>,
+      plus an Atlassian-Statuspage-style public status page. No Perl, no RRDtool,
+      no node toolchain.
+    </p>
+    <div class="flex justify-center gap-3 mt-8 flex-wrap">
+      <a href="/" class="btn btn-primary">
+        <svg class="icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M64 64c0-17.7-14.3-32-32-32S0 46.3 0 64L0 400c0 44.2 35.8 80 80 80l400 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 416c-8.8 0-16-7.2-16-16L64 64zm96 288l288 0c17.7 0 32-14.3 32-32l0-68.2c0-7.6-2.7-15-7.7-20.8l-65.8-76.8c-12.1-14.2-33.7-15-46.9-1.8l-21 21c-10 10-26.4 9.2-35.4-1.6l-39.2-47c-12.6-15.1-35.7-15.4-48.7-.6L135.9 215c-5.1 5.8-7.9 13.3-7.9 21.1l0 84c0 17.7 14.3 32 32 32z"/></svg>
+        Open graphs
+      </a>
+      <a href="/status" class="btn btn-ghost">
+        <svg class="icon" viewBox="0 0 512 512" aria-hidden="true"><path d="M228.3 469.1L47.6 300.4c-4.2-3.9-8.2-8.1-11.9-12.4l87 0c22.6 0 43-13.6 51.7-34.5l10.5-25.2 49.3 109.5c3.8 8.5 12.1 14 21.4 14.1s17.8-5 22-13.3L320 253.7l1.7 3.4c9.5 19 28.9 31 50.1 31l104.5 0c-3.7 4.3-7.7 8.5-11.9 12.4L283.7 469.1c-7.5 7-17.4 10.9-27.7 10.9s-20.2-3.9-27.7-10.9zM503.7 240l-132 0c-3 0-5.8-1.7-7.2-4.4l-23.2-46.3c-4.1-8.1-12.4-13.3-21.5-13.3s-17.4 5.1-21.5 13.3l-41.4 82.8L205.9 158.2c-3.9-8.7-12.7-14.3-22.2-14.1s-18.1 5.9-21.8 14.8l-31.8 76.3c-1.2 3-4.2 4.9-7.4 4.9L16 240c-2.6 0-5 .4-7.3 1.1C3 225.2 0 208.2 0 190.9l0-5.8c0-69.9 50.5-129.5 119.4-141C165 36.5 211.4 51.4 244 84l12 12 12-12c32.6-32.6 79-47.5 124.6-39.9C461.5 55.6 512 115.2 512 185.1l0 5.8c0 16.9-2.8 33.5-8.3 49.1z"/></svg>
+        Status page
+      </a>
+    </div>
+    <p class="text-xs text-base-content/45 mt-6 font-mono">v{{ version }}</p>
+  </section>
+
+  <section class="py-12 sm:py-16">
+    <h2 class="text-2xl sm:text-3xl font-bold mb-2">What it does</h2>
+    <p class="text-base-content/70 mb-8">
+      The boring parts of latency monitoring — probing, consolidating, alerting,
+      and telling everyone whether it's up — in one binary with no external
+      toolchain.
+    </p>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="border border-base-300 rounded-box p-5 bg-base-200">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="icon text-accent" viewBox="0 0 512 512" aria-hidden="true"><path d="M64 64c0-17.7-14.3-32-32-32S0 46.3 0 64L0 400c0 44.2 35.8 80 80 80l400 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 416c-8.8 0-16-7.2-16-16L64 64zm96 288l288 0c17.7 0 32-14.3 32-32l0-68.2c0-7.6-2.7-15-7.7-20.8l-65.8-76.8c-12.1-14.2-33.7-15-46.9-1.8l-21 21c-10 10-26.4 9.2-35.4-1.6l-39.2-47c-12.6-15.1-35.7-15.4-48.7-.6L135.9 215c-5.1 5.8-7.9 13.3-7.9 21.1l0 84c0 17.7 14.3 32 32 32z"/></svg>
+          <h3 class="font-semibold">Smoke graphs</h3>
+        </div>
+        <p class="text-sm text-base-content/80">
+          N pings per round; the full RTT distribution is stored and rendered as
+          the classic smoke band with a loss-colored median line. Detail pages at
+          3h/30h/10d/360d, drag-to-zoom, live WebSocket updates.
+        </p>
+      </div>
+
+      <div class="border border-base-300 rounded-box p-5 bg-base-200">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="icon text-accent" viewBox="0 0 512 512" aria-hidden="true"><path d="M192 32c0-17.7 14.3-32 32-32C383.1 0 512 128.9 512 288c0 17.7-14.3 32-32 32s-32-14.3-32-32C448 164.3 347.7 64 224 64c-17.7 0-32-14.3-32-32zM60.6 220.6L164.7 324.7l28.4-28.4c-.7-2.6-1.1-5.4-1.1-8.3c0-17.7 14.3-32 32-32s32 14.3 32 32s-14.3 32-32 32c-2.9 0-5.6-.4-8.3-1.1l-28.4 28.4L291.4 451.4c14.5 14.5 11.8 38.8-7.3 46.3C260.5 506.9 234.9 512 208 512C93.1 512 0 418.9 0 304c0-26.9 5.1-52.5 14.4-76.1c7.5-19 31.8-21.8 46.3-7.3zM224 96c106 0 192 86 192 192c0 17.7-14.3 32-32 32s-32-14.3-32-32c0-70.7-57.3-128-128-128c-17.7 0-32-14.3-32-32s14.3-32 32-32z"/></svg>
+          <h3 class="font-semibold">Six probe types</h3>
+        </div>
+        <p class="text-sm text-base-content/80">
+          <code>icmp</code> (native v4/v6), <code>tcp</code>, <code>dns</code>
+          (hand-rolled RFC 1035), <code>http(s)</code> (connect+TLS every ping),
+          <code>phoenix</code> (Elixir channel heartbeats), and <code>exec</code>
+          (anything that prints fping <code>-C</code> output). <code>probe</code>/<code>port</code>/<code>lookup</code>
+          inherit down the target tree.
+        </p>
+      </div>
+
+      <div class="border border-base-300 rounded-box p-5 bg-base-200">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="icon text-accent" viewBox="0 0 448 512" aria-hidden="true"><path d="M448 80l0 48c0 44.2-100.3 80-224 80S0 172.2 0 128L0 80C0 35.8 100.3 0 224 0S448 35.8 448 80zM393.2 214.7c20.8-7.4 39.9-16.9 54.8-28.6L448 288c0 44.2-100.3 80-224 80S0 332.2 0 288L0 186.1c14.9 11.8 34 21.2 54.8 28.6C99.7 230.7 159.5 240 224 240s124.3-9.3 169.2-25.3zM0 346.1c14.9 11.8 34 21.2 54.8 28.6C99.7 390.7 159.5 400 224 400s124.3-9.3 169.2-25.3c20.8-7.4 39.9-16.9 54.8-28.6l0 85.9c0 44.2-100.3 80-224 80S0 476.2 0 432l0-85.9z"/></svg>
+          <h3 class="font-semibold">RRD-style storage</h3>
+        </div>
+        <p class="text-sm text-base-content/80">
+          Fixed-size memory-mapped series files with AVERAGE/MIN/MAX
+          consolidation and xff — SmokePing's default retention table, no RRDtool
+          and no growing-forever database.
+        </p>
+      </div>
+
+      <div class="border border-base-300 rounded-box p-5 bg-base-200">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="icon text-accent" viewBox="0 0 448 512" aria-hidden="true"><path d="M224 0c-17.7 0-32 14.3-32 32l0 19.2C119 66 64 130.6 64 208l0 18.8c0 47-17.3 92.4-48.5 127.6l-7.4 8.3c-8.4 9.4-10.4 22.9-5.3 34.4S19.4 416 32 416l384 0c12.6 0 24-7.4 29.2-18.9s3.1-25-5.3-34.4l-7.4-8.3C401.3 319.2 384 273.9 384 226.8l0-18.8c0-77.4-55-142-128-156.8L256 32c0-17.7-14.3-32-32-32zm45.3 493.3c12-12 18.7-28.3 18.7-45.3l-64 0-64 0c0 17 6.7 33.3 18.7 45.3s28.3 18.7 45.3 18.7s33.3-6.7 45.3-18.7z"/></svg>
+          <h3 class="font-semibold">Pattern-DSL alerts</h3>
+        </div>
+        <p class="text-sm text-base-content/80">
+          SmokePing's pattern language (<code>&gt;10%,&gt;10%,&gt;10%</code>,
+          <code>*N*</code> windows, <code>==U</code> unknowns) over loss% or
+          median ms. Edge-triggered with clears and optional <code>repeat_every</code>;
+          <code>log:</code> / <code>exec:</code> / <code>webhook:</code> /
+          <code>email:</code> notifiers.
+        </p>
+      </div>
+
+      <div class="border border-base-300 rounded-box p-5 bg-base-200">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="icon text-accent" viewBox="0 0 512 512" aria-hidden="true"><path d="M228.3 469.1L47.6 300.4c-4.2-3.9-8.2-8.1-11.9-12.4l87 0c22.6 0 43-13.6 51.7-34.5l10.5-25.2 49.3 109.5c3.8 8.5 12.1 14 21.4 14.1s17.8-5 22-13.3L320 253.7l1.7 3.4c9.5 19 28.9 31 50.1 31l104.5 0c-3.7 4.3-7.7 8.5-11.9 12.4L283.7 469.1c-7.5 7-17.4 10.9-27.7 10.9s-20.2-3.9-27.7-10.9zM503.7 240l-132 0c-3 0-5.8-1.7-7.2-4.4l-23.2-46.3c-4.1-8.1-12.4-13.3-21.5-13.3s-17.4 5.1-21.5 13.3l-41.4 82.8L205.9 158.2c-3.9-8.7-12.7-14.3-22.2-14.1s-18.1 5.9-21.8 14.8l-31.8 76.3c-1.2 3-4.2 4.9-7.4 4.9L16 240c-2.6 0-5 .4-7.3 1.1C3 225.2 0 208.2 0 190.9l0-5.8c0-69.9 50.5-129.5 119.4-141C165 36.5 211.4 51.4 244 84l12 12 12-12c32.6-32.6 79-47.5 124.6-39.9C461.5 55.6 512 115.2 512 185.1l0 5.8c0 16.9-2.8 33.5-8.3 49.1z"/></svg>
+          <h3 class="font-semibold">Public status page</h3>
+        </div>
+        <p class="text-sm text-base-content/80">
+          <a href="/status" class="link">/status</a> maps named components to
+          targets, derives severity from the same pattern engine, and
+          auto-opens/resolves incidents as a JSONL event log. 90-day uptime bars,
+          Statuspage-compatible <a href="/api/status.json" class="link">status.json</a>.
+        </p>
+      </div>
+
+      <div class="border border-base-300 rounded-box p-5 bg-base-200">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="icon text-accent" viewBox="0 0 576 512" aria-hidden="true"><path d="M80.3 44C69.8 69.9 64 98.2 64 128s5.8 58.1 16.3 84c6.6 16.4-1.3 35-17.7 41.7s-35-1.3-41.7-17.7C7.4 202.6 0 166.1 0 128S7.4 53.4 20.9 20C27.6 3.6 46.2-4.3 62.6 2.3S86.9 27.6 80.3 44zM555.1 20C568.6 53.4 576 89.9 576 128s-7.4 74.6-20.9 108c-6.6 16.4-25.3 24.3-41.7 17.7S489.1 228.4 495.7 212c10.5-25.9 16.3-54.2 16.3-84s-5.8-58.1-16.3-84C489.1 27.6 497 9 513.4 2.3s35 1.3 41.7 17.7zM352 128c0 23.7-12.9 44.4-32 55.4L320 480c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-296.6c-19.1-11.1-32-31.7-32-55.4c0-35.3 28.7-64 64-64s64 28.7 64 64zM170.6 76.8C163.8 92.4 160 109.7 160 128s3.8 35.6 10.6 51.2c7.1 16.2-.3 35.1-16.5 42.1s-35.1-.3-42.1-16.5c-10.3-23.6-16-49.6-16-76.8s5.7-53.2 16-76.8c7.1-16.2 25.9-23.6 42.1-16.5s23.6 25.9 16.5 42.1zM464 51.2c10.3 23.6 16 49.6 16 76.8s-5.7 53.2-16 76.8c-7.1 16.2-25.9 23.6-42.1 16.5s-23.6-25.9-16.5-42.1c6.8-15.6 10.6-32.9 10.6-51.2s-3.8-35.6-10.6-51.2c-7.1-16.2 .3-35.1 16.5-42.1s35.1 .3 42.1 16.5z"/></svg>
+          <h3 class="font-semibold">Metrics emitters</h3>
+        </div>
+        <p class="text-sm text-base-content/80">
+          Prometheus <a href="/metrics" class="link">/metrics</a>, Graphite
+          plaintext, and InfluxDB line protocol (v1/v2) — all backpressure-safe
+          (drop + warn, never block probing).
+        </p>
+      </div>
+
+      <div class="border border-base-300 rounded-box p-5 bg-base-200">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="icon text-accent" viewBox="0 0 576 512" aria-hidden="true"><path d="M208 80c0-26.5 21.5-48 48-48l64 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-8 0 0 40 152 0c30.9 0 56 25.1 56 56l0 32 8 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-64 0c-26.5 0-48-21.5-48-48l0-64c0-26.5 21.5-48 48-48l8 0 0-32c0-4.4-3.6-8-8-8l-152 0 0 40 8 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-64 0c-26.5 0-48-21.5-48-48l0-64c0-26.5 21.5-48 48-48l8 0 0-40-152 0c-4.4 0-8 3.6-8 8l0 32 8 0c26.5 0 48 21.5 48 48l0 64c0 26.5-21.5 48-48 48l-64 0c-26.5 0-48-21.5-48-48l0-64c0-26.5 21.5-48 48-48l8 0 0-32c0-30.9 25.1-56 56-56l152 0 0-40-8 0c-26.5 0-48-21.5-48-48l0-64z"/></svg>
+          <h3 class="font-semibold">Distributed agents</h3>
+        </div>
+        <p class="text-sm text-base-content/80">
+          <code>dabping agent</code> (same binary) pulls its assignment from the
+          master and pushes results back, buffering up to 10k rounds while
+          offline. Per-agent series (<code>path@agent</code>) draw as dashed
+          overlays; <code>nomasterpoll</code> for agent-only targets.
+        </p>
+      </div>
+
+      <div class="border border-base-300 rounded-box p-5 bg-base-200">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="icon text-accent" viewBox="0 0 512 512" aria-hidden="true"><path d="M105.1 202.6c7.7-21.8 20.2-42.3 37.8-59.8c62.5-62.5 163.8-62.5 226.3 0L386.3 160 352 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l111.5 0c0 0 0 0 0 0l.4 0c17.7 0 32-14.3 32-32l0-112c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 35.2L414.4 97.6c-87.5-87.5-229.3-87.5-316.8 0C73.2 122 55.6 150.7 44.8 181.4c-5.9 16.7 2.9 34.9 19.5 40.8s34.9-2.9 40.8-19.5zM39 289.3c-5 1.5-9.8 4.2-13.7 8.2c-4 4-6.7 8.8-8.1 14c-.3 1.2-.6 2.5-.8 3.8c-.3 1.7-.4 3.4-.4 5.1L16 432c0 17.7 14.3 32 32 32s32-14.3 32-32l0-35.1 17.6 17.5c0 0 0 0 0 0c87.5 87.4 229.3 87.4 316.7 0c24.4-24.4 42.1-53.1 52.9-83.8c5.9-16.7-2.9-34.9-19.5-40.8s-34.9 2.9-40.8 19.5c-7.7 21.8-20.2 42.3-37.8 59.8c-62.5 62.5-163.8 62.5-226.3 0l-.1-.1L125.6 352l34.4 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L48.4 288c-1.6 0-3.2 .1-4.8 .3s-3.1 .5-4.6 1z"/></svg>
+          <h3 class="font-semibold">Operable</h3>
+        </div>
+        <p class="text-sm text-base-content/80">
+          <code>SIGHUP</code> hot reload — a new config is validated first, and a
+          broken file keeps the old one running (agents re-fetch their
+          assignment). Ships with a hardened systemd unit and a Dockerfile.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-12 sm:py-16 text-center">
+    <h2 class="text-2xl sm:text-3xl font-bold mb-2">Built on Rust</h2>
+    <p class="text-base-content/70 max-w-2xl mx-auto">
+      axum + tokio, memory-mapped RRD-style storage, minijinja + Tailwind +
+      DaisyUI on the front — five OKLCH themes, all embedded. One static binary:
+      <code>run</code> the master, <code>agent</code> a remote probe.
+    </p>
+  </section>
+
+  <footer class="py-10 sm:py-12 mt-8 border-t border-base-300 text-center">
+    <p class="font-mono text-xs uppercase tracking-[0.25em] text-base-content/70 flex items-center justify-center gap-2">
+      <span class="font-bold tracking-[0.16em]">DABPING</span>
+      <span class="opacity-50">·</span>
+      <span>a</span>
+      {# Hardcoded oklch from the neiam-co accent (the value every
+         ported theme assigns to --color-accent). Inline so the
+         NEIAM mark stays yellow regardless of which theme the
+         viewer has picked. #}
+      <span class="font-bold tracking-[0.16em]" style="color: oklch(96% 0.058 96);">
+        <a href="https://neiam.org"> NEIAM </a>
+      </span>
+      <span>production</span>
+    </p>
+  </footer>
+</div>
+</body>
+</html>

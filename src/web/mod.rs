@@ -166,6 +166,7 @@ pub async fn serve(cfg: config::Web, state: AppState) -> Result<()> {
         .route("/api/agent/results", axum::routing::post(agent_results))
         .route("/metrics", get(metrics))
         .route("/status", get(status_page))
+        .route("/about", get(about_page))
         .route("/api/status.json", get(status_json))
         .route("/api/status/incident/{id}/update", axum::routing::post(incident_update))
         .route("/api/status/incident/{id}/resolve", axum::routing::post(incident_resolve))
@@ -409,12 +410,14 @@ async fn metrics(State(st): State<AppState>) -> Response {
 
 // ---- status page ----
 
-fn status_env() -> &'static minijinja::Environment<'static> {
+fn template_env() -> &'static minijinja::Environment<'static> {
     static ENV: std::sync::OnceLock<minijinja::Environment<'static>> = std::sync::OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = minijinja::Environment::new();
         env.add_template("status", include_str!("templates/status.html.j2"))
             .expect("status template parses");
+        env.add_template("about", include_str!("templates/about.html.j2"))
+            .expect("about template parses");
         env
     })
 }
@@ -523,10 +526,21 @@ async fn status_page(State(st): State<AppState>) -> Response {
         return (StatusCode::NOT_FOUND, "no status page configured").into_response();
     };
     let ctx = status_context(&st, eng);
-    match status_env().get_template("status").and_then(|t| t.render(&ctx)) {
+    match template_env().get_template("status").and_then(|t| t.render(&ctx)) {
         Ok(html) => axum::response::Html(html).into_response(),
         Err(e) => {
             tracing::error!(error = %e, "status template render failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response()
+        }
+    }
+}
+
+async fn about_page() -> Response {
+    let ctx = serde_json::json!({ "version": env!("CARGO_PKG_VERSION") });
+    match template_env().get_template("about").and_then(|t| t.render(&ctx)) {
+        Ok(html) => axum::response::Html(html).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "about template render failed");
             (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response()
         }
     }

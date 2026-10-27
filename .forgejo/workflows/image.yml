@@ -12,19 +12,33 @@
 # The forge has no artifact storage, so the per-arch images travel as
 # build-<sha>-<arch> tags rather than as digests in an artifact.
 #
-# No test gate: this workflow can't `needs:` the .github workflow's test
-# job, and the Dockerfile compiles the release itself.
-name: image
+# Tests gate the image, as on GitHub: container.yml's test job is copied
+# in above the image job, guarded to the forge. The .github copies of
+# those jobs are skipped here, so they run once.
+name: ci (forge)
 
 on:
   push:
     branches: [master]
     tags: ['v*']
+  pull_request:
   workflow_dispatch:
 
 jobs:
-  image:
+  test:
     if: github.server_url != 'https://github.com'
+    runs-on: arc-runner-set
+    steps:
+      - uses: actions/checkout@v4
+      # ARC's default runner image ships no compilers; ring (rustls) needs cc
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
+
+  image:
+    needs: [test]
+    if: github.server_url != 'https://github.com' && github.event_name != 'pull_request'
     strategy:
       matrix:
         include:
@@ -59,7 +73,7 @@ jobs:
           cache-to: type=registry,ref=${{ vars.CI_REGISTRY }}/${{ github.repository }}:buildcache-${{ matrix.arch }},mode=max
 
   manifest:
-    if: github.server_url != 'https://github.com'
+    if: github.server_url != 'https://github.com' && github.event_name != 'pull_request'
     needs: image
     runs-on: arc-runner-set
     permissions:

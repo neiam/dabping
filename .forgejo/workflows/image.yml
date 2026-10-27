@@ -1,0 +1,103 @@
+# The forge's copy of the image publish. .github/workflows/container.yml's
+# image job pushes to ghcr.io, but only when it runs on GitHub; here the
+# image goes to the forge's bundled registry (CI_REGISTRY), as camerite
+# and gitgud do: <registry>/<owner>/<repo>.
+#
+# No secrets. The forge injects CI_REGISTRY and accepts the per-job
+# github.token for push to this repository's own image path.
+#
+# amd64 and arm64, as before, but each built natively on its own runner
+# rather than under QEMU on one, then merged into one manifest list.
+# setup-qemu-action crashed on arc-runner-set (fatal error: newosproc).
+# The forge has no artifact storage, so the per-arch images travel as
+# build-<sha>-<arch> tags rather than as digests in an artifact.
+#
+# No test gate: this workflow can't `needs:` the .github workflow's test
+# job, and the Dockerfile compiles the release itself.
+name: image
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  image:
+    if: github.server_url != 'https://github.com'
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: arc-runner-set
+          - arch: arm64
+            runner: [self-hosted, runner-aarch64]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      # The username is ignored by the token endpoint, but login-action
+      # requires it to be non-empty.
+      - name: Log in to the forge registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.CI_REGISTRY }}
+          username: gitgud-actions
+          password: ${{ github.token }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          tags: ${{ vars.CI_REGISTRY }}/${{ github.repository }}:build-${{ github.sha }}-${{ matrix.arch }}
+          cache-from: type=registry,ref=${{ vars.CI_REGISTRY }}/${{ github.repository }}:buildcache-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ vars.CI_REGISTRY }}/${{ github.repository }}:buildcache-${{ matrix.arch }},mode=max
+
+  manifest:
+    if: github.server_url != 'https://github.com'
+    needs: image
+    runs-on: arc-runner-set
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the forge registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.CI_REGISTRY }}
+          username: gitgud-actions
+          password: ${{ github.token }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ vars.CI_REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Merge the per-arch images into one manifest list
+        env:
+          IMAGE: ${{ vars.CI_REGISTRY }}/${{ github.repository }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          args=()
+          while read -r tag; do
+            if [ -n "$tag" ]; then args+=(-t "$tag"); fi
+          done <<< "$TAGS"
+
+          docker buildx imagetools create "${args[@]}" \
+            "$IMAGE:build-$GITHUB_SHA-amd64" \
+            "$IMAGE:build-$GITHUB_SHA-arm64"
+          printf 'published:\n%s\n' "$TAGS"

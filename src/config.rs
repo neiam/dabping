@@ -564,10 +564,10 @@ impl Config {
                 .get(here.probe)
                 .with_context(|| format!("target {path}: unknown probe {:?}", here.probe))?;
             // probes that need a port must get one from somewhere
-            if let ProbeConfig::Tcp(t) = probe_cfg {
-                if t.port.or(here.port).is_none() {
-                    bail!("target {path}: tcp probe {:?} needs a port (on the probe or the target)", here.probe);
-                }
+            if let ProbeConfig::Tcp(t) = probe_cfg
+                && t.port.or(here.port).is_none()
+            {
+                bail!("target {path}: tcp probe {:?} needs a port (on the probe or the target)", here.probe);
             }
             validate_target_path(path)?; // paths become series file names
             if path.contains('@') {

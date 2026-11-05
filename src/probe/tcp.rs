@@ -38,13 +38,10 @@ impl TcpProbe {
         let mut rtts = Vec::with_capacity(pings as usize);
         for i in 0..pings {
             let t0 = Instant::now();
-            match tokio::time::timeout(self.timeout, TcpStream::connect(sa)).await {
-                Ok(Ok(stream)) => {
-                    rtts.push(t0.elapsed());
-                    drop(stream); // immediate close; we only wanted the handshake
-                }
-                // refused / unreachable / timeout — all count as loss
-                Ok(Err(_)) | Err(_) => {}
+            // refused / unreachable / timeout — all count as loss
+            if let Ok(Ok(stream)) = tokio::time::timeout(self.timeout, TcpStream::connect(sa)).await {
+                rtts.push(t0.elapsed());
+                drop(stream); // immediate close; we only wanted the handshake
             }
             pace(t0, self.interval, i + 1 == pings).await;
         }

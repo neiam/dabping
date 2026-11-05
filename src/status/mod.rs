@@ -385,7 +385,7 @@ impl StatusEngine {
             Severity::MajorOutage
         } else if down > 0 {
             Severity::PartialOutage
-        } else if states.iter().any(|s| *s == Severity::Degraded) {
+        } else if states.contains(&Severity::Degraded) {
             Severity::Degraded
         } else {
             Severity::Operational

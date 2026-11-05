@@ -47,7 +47,9 @@ impl IcmpProbe {
         socket
             .connect(&SockAddr::from(SocketAddr::new(addr, 0)))
             .with_context(|| format!("cannot connect ICMP socket to {addr}"))?;
-        let fd = AsyncFd::new(socket).context("cannot register ICMP socket with tokio")?;
+        // SAFETY: the Socket owns its descriptor, which stays open and the
+        // same until the AsyncFd drops it.
+        let fd = unsafe { AsyncFd::register(socket) }.context("cannot register ICMP socket with tokio")?;
 
         // On ping sockets the kernel overwrites the ident with the socket's
         // local "port"; it only matters for filtering on raw sockets.
@@ -176,11 +178,11 @@ fn parse_reply(mut pkt: &[u8], addr: IpAddr, raw: bool, ident: u16) -> Option<u1
 /// RFC 1071 internet checksum.
 fn checksum(data: &[u8]) -> u16 {
     let mut sum = 0u32;
-    let mut chunks = data.chunks_exact(2);
-    for chunk in &mut chunks {
-        sum += u16::from_be_bytes([chunk[0], chunk[1]]) as u32;
+    let (pairs, rest) = data.as_chunks::<2>();
+    for pair in pairs {
+        sum += u16::from_be_bytes(*pair) as u32;
     }
-    if let [last] = chunks.remainder() {
+    if let [last] = rest {
         sum += (*last as u32) << 8;
     }
     while sum >> 16 != 0 {

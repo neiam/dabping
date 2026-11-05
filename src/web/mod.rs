@@ -346,25 +346,25 @@ async fn charts_top(State(st): State<AppState>, Query(q): Query<ChartsQuery>) ->
 
 // ---- distributed agents ----
 
-/// Validate X-Dabping-Agent/-Secret; returns the agent name.
-fn agent_auth<'a>(st: &'a AppState, headers: &axum::http::HeaderMap) -> Result<&'a str, Response> {
-    let name = headers.get("x-dabping-agent").and_then(|v| v.to_str().ok());
-    let secret = headers.get("x-dabping-secret").and_then(|v| v.to_str().ok());
-    let unauthorized =
-        || (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "bad agent credentials"}))).into_response();
-    let (Some(name), Some(secret)) = (name, secret) else {
-        return Err(unauthorized());
-    };
+/// Validate X-Dabping-Agent/-Secret; returns the agent name, or None when
+/// the credentials are missing or wrong (answer with `agent_unauthorized`).
+fn agent_auth<'a>(st: &'a AppState, headers: &axum::http::HeaderMap) -> Option<&'a str> {
+    let name = headers.get("x-dabping-agent").and_then(|v| v.to_str().ok())?;
+    let secret = headers.get("x-dabping-secret").and_then(|v| v.to_str().ok())?;
     match st.agents.get_key_value(name) {
-        Some((key, entry)) if entry.secret == secret => Ok(key.as_str()),
-        _ => Err(unauthorized()),
+        Some((key, entry)) if entry.secret == secret => Some(key.as_str()),
+        _ => None,
     }
+}
+
+fn agent_unauthorized() -> Response {
+    (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "bad agent credentials"}))).into_response()
 }
 
 async fn agent_config(State(st): State<AppState>, headers: axum::http::HeaderMap) -> Response {
     match agent_auth(&st, &headers) {
-        Ok(name) => Json(st.agents[name].assignment.clone()).into_response(),
-        Err(r) => r,
+        Some(name) => Json(st.agents[name].assignment.clone()).into_response(),
+        None => agent_unauthorized(),
     }
 }
 
@@ -373,9 +373,8 @@ async fn agent_results(
     headers: axum::http::HeaderMap,
     Json(rounds): Json<Vec<crate::agent::WireRound>>,
 ) -> Response {
-    let name = match agent_auth(&st, &headers) {
-        Ok(n) => n.to_string(),
-        Err(r) => return r,
+    let Some(name) = agent_auth(&st, &headers).map(str::to_string) else {
+        return agent_unauthorized();
     };
     let entry = &st.agents[&name];
     let mut stored = 0usize;

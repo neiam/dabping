@@ -135,7 +135,8 @@ mod tests {
     #[tokio::test]
     async fn posts_batches_with_token() {
         use std::sync::{Arc, Mutex};
-        let got: Arc<Mutex<Vec<(Option<String>, String)>>> = Arc::default();
+        type Write = (Option<String>, String); // (authorization header, body)
+        let got: Arc<Mutex<Vec<Write>>> = Arc::default();
         let got2 = got.clone();
         let app = axum::Router::new().route(
             "/api/v2/write",

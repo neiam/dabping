@@ -43,6 +43,9 @@ const EMPTY_WINDOW: i64 = i64::MIN;
 /// Refuse to materialize absurd fetches (e.g. a year of 1s data).
 const MAX_FETCH_POINTS: u64 = 1_000_000;
 
+/// One fetched row: its timestamp and a value per field (NaN where empty).
+pub type Row = (i64, Vec<f64>);
+
 pub struct TargetSeries {
     map: MmapMut,
     step: u64,
@@ -104,7 +107,7 @@ impl TargetSeries {
         }
         // SAFETY: we own the file; concurrent mappings are guarded by the
         // per-series Mutex in Store.
-        let map = unsafe { MmapMut::map_mut(&file)? }.into();
+        let map = unsafe { MmapMut::map_mut(&file)? };
         let mut series = TargetSeries { map, step, fields, archives };
 
         if !exists {
@@ -207,7 +210,7 @@ impl TargetSeries {
     /// can serve the requested cf, covers `from`, and (when max_points > 0)
     /// doesn't return more than max_points. Returns (period, points); rows
     /// with no valid data come back NaN-filled, never omitted.
-    pub fn fetch(&self, cf: Cf, from: i64, to: i64, max_points: u64) -> Result<(u64, Vec<(i64, Vec<f64>)>)> {
+    pub fn fetch(&self, cf: Cf, from: i64, to: i64, max_points: u64) -> Result<(u64, Vec<Row>)> {
         // a steps=1 archive holds raw samples, which serve any cf
         let mut cands: Vec<&Geom> =
             self.archives.iter().filter(|g| g.cf == cf || g.steps == 1).collect();

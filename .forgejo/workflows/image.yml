@@ -13,8 +13,8 @@
 # build-<sha>-<arch> tags rather than as digests in an artifact.
 #
 # Tests gate the image, as on GitHub: container.yml's test job is copied
-# in above the image job, guarded to the forge. The .github copies of
-# those jobs are skipped here, so they run once.
+# in above the image job, guarded to the forge, with clippy added. The
+# .github copies of those jobs are skipped here, so they run once.
 name: ci (forge)
 
 on:
@@ -40,8 +40,13 @@ jobs:
       # ARC's default runner image ships no compilers; ring (rustls) needs cc
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo test
+      # Every warning clippy or rustc raises fails the run: the one
+      # command every Rust repository on the forge gates on.
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   image:
     needs: [test]
